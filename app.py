@@ -16,6 +16,7 @@ port_intel.py with reference_data/.
 
 from __future__ import annotations
 
+import datetime
 import html
 import io
 import json
@@ -786,9 +787,21 @@ def safe_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", text).strip("_") or "vessel"
 
 
-# ships picked on a first visit: seismic ships that share survey hotspots, so the map
-# shows surveys, a hotspot and port routes straight away
+# ships picked on a first visit: the deep-sea mining watchlist (the GFW export the weekly
+# update also pulls), else a few seismic ships that share survey hotspots
+WATCHLIST = LIBRARY / "watchlist_deep_sea_mining.csv"
 DEFAULT_MMSI = ["413491890", "413331770", "413341680", "412301240", "413305460"]
+
+
+@st.cache_data(show_spinner=False)
+def watchlist_mmsi(stamp: float) -> frozenset:
+    """MMSIs on the deep-sea mining watchlist (stamp: the file's modified time, for the cache)."""
+    try:
+        w = pd.read_csv(WATCHLIST, dtype=str)
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        return frozenset()
+    col = next((c for c in w.columns if c.strip().lower() == "mmsi"), None)
+    return frozenset(w[col].dropna().str.strip()) if col else frozenset()
 FLAG_CODES = {"China": "CN", "France": "FR", "Japan": "JP", "United States": "US", "Germany": "DE",
               "Russia": "RU", "Denmark": "DK", "Norway": "NO", "South Korea": "KR", "India": "IN",
               "Malta": "MT", "Marshall Islands": "MH", "Saint Kitts and Nevis": "KN", "Taiwan": "TW",
@@ -941,9 +954,11 @@ st.markdown(
 with st.container(border=True, key="howto"):
     st.markdown(
         "**How to use this site**\n\n"
-        "1. **Choose ships** below. They are grouped by the country whose flag they fly: open a "
-        "country, tick the ships you want and press **Show chosen ships on the map**.\n"
-        "2. **Pick a timeframe** if you only want recent activity (all data is used by default).\n"
+        "1. **Choose ships** below. The site opens on the **deep-sea mining ships**. Ships are "
+        "grouped by the country whose flag they fly: open a country, tick the ships you want and "
+        "press **Show chosen ships on the map**.\n"
+        "2. **Pick a timeframe.** The site opens on the **latest week** of data; choose *All data* "
+        "to see a ship's whole history.\n"
         "3. **Read the map.** Each ship's track is a thin line. Where a ship sailed a survey "
         "pattern, its survey lines are drawn bold, inside a dashed outline. Orange and red "
         "patches are **hotspots**, places several ships surveyed. Dashed lines lead from each "
@@ -974,9 +989,13 @@ st.subheader("Step 1 · Choose ships")
 if not len(lib):
     st.info("No ship library found (library/vessels.csv). Upload AIS files below instead.")
 else:
-    lib = lib.assign(kind=lib["ship_type"].map(ship_kind), flag=lib["flag"].replace("", "Unknown"))
-    if "lib_selected" not in st.session_state:   # first visit: a few ships that show a hotspot
-        start_with = lib[lib["mmsi"].isin(DEFAULT_MMSI) & lib["has_data"]]["name"]
+    mining = watchlist_mmsi(WATCHLIST.stat().st_mtime if WATCHLIST.exists() else 0.0)
+    lib = lib.assign(kind=lib["ship_type"].map(ship_kind), flag=lib["flag"].replace("", "Unknown"),
+                     mining=lib["mmsi"].isin(mining))
+    if "lib_selected" not in st.session_state:   # first visit: the deep-sea mining ships
+        start_with = lib[lib["mining"] & lib["has_data"]]["name"]
+        if not len(start_with):
+            start_with = lib[lib["mmsi"].isin(DEFAULT_MMSI) & lib["has_data"]]["name"]
         st.session_state["lib_selected"] = set(start_with) or set(lib[lib["has_data"]]["name"].head(5))
     selected = st.session_state["lib_selected"]
     st.session_state.setdefault("lib_ver", 0)
@@ -996,8 +1015,13 @@ else:
     if with_data:
         view = view[view["has_data"]]
 
-    b1, b2, b3, _ = st.columns([2, 2, 2, 3])
+    b0, b1, b2, b3 = st.columns(4)
     have = view[view["has_data"]]
+    if b0.button("Deep-sea mining ships", width="stretch", disabled=not lib["mining"].any(),
+                 help="Only the ships on the deep-sea mining watchlist (replaces the current choice)."):
+        selected.clear()
+        selected |= set(lib[lib["mining"] & lib["has_data"]]["name"])
+        st.session_state["lib_ver"] += 1
     if b1.button(f"Choose all {len(have)} listed", disabled=not len(have), width="stretch",
                  help="Every ship with data that matches the search and filters above."):
         selected |= set(have["name"])
@@ -1030,6 +1054,7 @@ else:
                 table = pd.DataFrame({
                     "show": rows["name"].isin(selected).to_numpy(),
                     "name": rows["name"].to_numpy(),
+                    "mining": rows["mining"].to_numpy(),
                     "kind": rows["kind"].to_numpy(),
                     "operator": rows.get("operator", pd.Series([""] * len(rows))).to_numpy(),
                     "data": [f"{a} → {b}" if h else "no data yet"
@@ -1038,10 +1063,12 @@ else:
                 })
                 edited[country] = (rows, st.data_editor(
                     table, key=f"lib_table|{country}|{tag}", hide_index=True, width="stretch",
-                    disabled=["name", "kind", "operator", "data", "positions"],
+                    disabled=["name", "mining", "kind", "operator", "data", "positions"],
                     column_config={
                         "show": st.column_config.CheckboxColumn("Show", help="Tick to put this ship on the map"),
                         "name": "Ship", "kind": "Kind", "operator": "Operator",
+                        "mining": st.column_config.CheckboxColumn(
+                            "Deep-sea mining", help="On the deep-sea mining watchlist"),
                         "data": "Position data", "positions": st.column_config.NumberColumn("Positions")}))
         go = st.form_submit_button("Show chosen ships on the map", type="primary")
     if go:
@@ -1076,12 +1103,16 @@ else:
         if span_from and span_to:
             st.subheader("Step 2 · Pick a timeframe (optional)")
             t_col, r_col = st.columns([2, 3])
-            frame = t_col.selectbox("Timeframe", ["All data", "Last 7 days", "Last 30 days",
+            frame = t_col.selectbox("Timeframe", ["Latest week", "All data", "Last 7 days", "Last 30 days",
                                                   "Last 90 days", "Last 365 days", "Custom range"],
                                     key="lib_frame",
-                                    help="'Last N days' counts back from each ship's own newest position, "
+                                    help="'Latest week' is the 7 days up to the newest position of the chosen "
+                                         "ships (Global Fishing Watch data arrives about 4 days late). "
+                                         "'Last N days' counts back from each ship's own newest position, "
                                          "so ships tracked in different years can be compared.")
             last_n = int(frame.split()[1]) if frame.startswith("Last") else None
+            if frame == "Latest week":
+                start, end = max(span_from, span_to - datetime.timedelta(days=6)), span_to
             if frame == "Custom range":
                 picked = r_col.date_input("Dates", value=(span_from, span_to), min_value=span_from,
                                           max_value=span_to, key="lib_dates")
@@ -1092,9 +1123,13 @@ else:
                 f"Analysing **{start} to {end}**."))
         else:
             last_n = None
+        quiet = []
         for _, row in chosen.iterrows():
             f = LIBRARY / "tracks" / row["track_file"]
             s_i, e_i = start, end
+            if not last_n and start and row["data_to"] and (row["data_to"] < start or row["data_from"] > end):
+                quiet.append(row["name"])            # no positions in the chosen dates
+                continue
             if last_n and row["data_to"]:   # per ship: its own newest position
                 e_i = row["data_to"]
                 s_i = max(row["data_from"], e_i - pd.Timedelta(days=last_n - 1))
@@ -1102,6 +1137,10 @@ else:
             groups.append((row["name"], ((f"{safe_name(row['name'])}.csv", data),)))
             lib_ids.append((row["name"], None, row["mmsi"], row["flag"], row["name"], "library",
                             row.get("imo", "")))
+        if quiet:
+            st.caption(f"{len(quiet)} chosen ship{'s have' if len(quiet) != 1 else ' has'} no positions in "
+                       f"these dates (in port, or AIS off) and {'are' if len(quiet) != 1 else 'is'} left off "
+                       "the map: " + ", ".join(sorted(quiet)) + ".")
 
 with st.expander("Or analyse your own AIS files"):
     uploads = st.file_uploader("AIS position files", type=UPLOAD_TYPES, accept_multiple_files=True,
