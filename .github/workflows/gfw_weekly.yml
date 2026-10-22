@@ -1,6 +1,12 @@
 # Every Monday morning: pull the newest Global Fishing Watch tracks into the ship
 # library and commit them, so the website (Streamlit) redeploys with the new data.
 #
+# 1. Deep-sea mining ships (main focus): the watchlist CSV below. Ships GFW classes
+#    as seismic are pulled by flag + type; all others through the GFW vessel group
+#    below (made on the GFW map site; to add a ship, add it to that group and to
+#    the CSV).
+# 2. Every Chinese ship GFW classes as survey / seismic.
+#
 # Needs one repository secret, GFW_TOKEN (Settings > Secrets and variables > Actions),
 # holding the GFW API token. Run it by hand from the Actions tab ("Run workflow").
 # Data: Powered by Global Fishing Watch, CC BY-NC 4.0 (non-commercial use only).
@@ -19,6 +25,11 @@ concurrency:
   group: gfw-update
   cancel-in-progress: false
 
+env:
+  WATCHLIST: library/watchlist_deep_sea_mining.csv
+  VESSEL_GROUP: mining_vessels-user-public
+  MONTHS: "2"                # re-fetching an overlap is safe: tracks are merged, not duplicated
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -33,7 +44,7 @@ jobs:
       - name: Install
         run: pip install "pandas>=2.0"
 
-      - name: Fetch the last two months (overlaps are merged, not duplicated)
+      - name: Check the token secret
         env:
           GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
         run: |
@@ -41,7 +52,20 @@ jobs:
             echo "::error::Add the GFW_TOKEN secret: Settings > Secrets and variables > Actions"
             exit 1
           fi
-          python gfw_fetch.py --months 2
+
+      - name: Deep-sea mining ships (watchlist and vessel group)
+        id: mining
+        continue-on-error: true
+        env:
+          GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
+        run: python gfw_fetch.py --months "$MONTHS" --watchlist "$WATCHLIST" --vessel-group "$VESSEL_GROUP"
+
+      - name: Chinese survey and seismic ships
+        id: china
+        continue-on-error: true
+        env:
+          GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
+        run: python gfw_fetch.py --months "$MONTHS"
 
       - name: Commit new data
         run: |
@@ -55,3 +79,9 @@ jobs:
           git commit -m "Weekly GFW update $(date -u +%Y-%m-%d)" \
                      -m "Powered by Global Fishing Watch (CC BY-NC 4.0)."
           git push
+
+      - name: Report a failed pull
+        if: steps.mining.outcome == 'failure' || steps.china.outcome == 'failure'
+        run: |
+          echo "::error::A GFW pull failed (deep-sea mining: ${{ steps.mining.outcome }}, China: ${{ steps.china.outcome }}). Data from the other pull was still committed."
+          exit 1
