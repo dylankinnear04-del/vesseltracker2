@@ -1,0 +1,57 @@
+# Every Monday morning: pull the newest Global Fishing Watch tracks into the ship
+# library and commit them, so the website (Streamlit) redeploys with the new data.
+#
+# Needs one repository secret, GFW_TOKEN (Settings > Secrets and variables > Actions),
+# holding the GFW API token. Run it by hand from the Actions tab ("Run workflow").
+# Data: Powered by Global Fishing Watch, CC BY-NC 4.0 (non-commercial use only).
+
+name: Weekly GFW update
+
+on:
+  schedule:
+    - cron: "0 11 * * 1"    # Mondays 11:00 UTC = 7:00 US Eastern in summer, 6:00 in winter
+  workflow_dispatch:         # "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write            # lets the job commit the new tracks
+
+concurrency:
+  group: gfw-update
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install "pandas>=2.0"
+
+      - name: Fetch the last two months (re-fetching overlaps safely: tracks are merged)
+        env:
+          GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
+        run: |
+          if [ -z "$GFW_TOKEN" ]; then
+            echo "::error::Add the GFW_TOKEN secret: Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          python gfw_fetch.py --months 2
+
+      - name: Commit new data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add library/vessels.csv library/tracks
+          if git diff --cached --quiet; then
+            echo "No new positions this week."
+            exit 0
+          fi
+          git commit -m "Weekly GFW update $(date -u +%Y-%m-%d)" \
+                     -m "Powered by Global Fishing Watch (CC BY-NC 4.0)."
+          git push
