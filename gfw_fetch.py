@@ -75,7 +75,7 @@ GFW_TYPES = {"seismic vessel": "seismic_vessel", "other": "other_non_fishing", "
 
 
 def token() -> str:
-    t = os.environ.get("GFW_TOKEN") or ""
+    t = (os.environ.get("GFW_TOKEN") or "").strip()   # a pasted secret often ends in a newline
     f = HERE / "gfw_token.txt"
     if not t and f.exists():
         t = f.read_text().strip()
