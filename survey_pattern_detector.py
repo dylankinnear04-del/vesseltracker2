@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import math
 import re
@@ -638,15 +639,25 @@ def lines_in_chunk(lat, lon, cfg: Config):
     return pieces
 
 
+_columns_of = [None, None]   # (frame, its columns as arrays): describe_line runs thousands of times
+
+
+def _columns(p: pd.DataFrame) -> dict:
+    if _columns_of[0] is not p:
+        _columns_of[:] = [p, {c: p[c].to_numpy() for c in ("lat", "lon", "speed_kn", "time", "row_in_file")}]
+    return _columns_of[1]
+
+
 def describe_line(p: pd.DataFrame, i0: int, i1: int, has_time: bool) -> dict:
-    seg = p.iloc[i0:i1 + 1]
-    la, lo = seg["lat"].to_numpy(), seg["lon"].to_numpy()
+    c = _columns(p)
+    la, lo = c["lat"][i0:i1 + 1], c["lon"][i0:i1 + 1]
+    speed = c["speed_kn"][i0:i1 + 1].astype(float)
     chord = float(haversine_km(la[0], lo[0], la[-1], lo[-1]))
     path = float(haversine_km(la[:-1], lo[:-1], la[1:], lo[1:]).sum())
     heading = float(bearing_deg(la[0], lo[0], la[-1], lo[-1]))
     return {
         "i0": i0, "i1": i1,
-        "n_points": len(seg),
+        "n_points": len(la),
         "start_lat": la[0], "start_lon": lo[0],
         "end_lat": la[-1], "end_lon": lo[-1],
         "length_km": chord,
@@ -654,11 +665,11 @@ def describe_line(p: pd.DataFrame, i0: int, i1: int, has_time: bool) -> dict:
         "straightness": chord / path if path > 0 else 1.0,
         "heading_deg": heading,
         "axis_deg": heading % 180,
-        "median_speed_kn": float(seg["speed_kn"].median()) if seg["speed_kn"].notna().any() else np.nan,
-        "start_time": seg["time"].iloc[0] if has_time else pd.NaT,
-        "end_time": seg["time"].iloc[-1] if has_time else pd.NaT,
-        "start_row_in_file": int(seg["row_in_file"].iloc[0]),
-        "end_row_in_file": int(seg["row_in_file"].iloc[-1]),
+        "median_speed_kn": float(np.nanmedian(speed)) if np.isfinite(speed).any() else np.nan,
+        "start_time": pd.Timestamp(c["time"][i0]) if has_time else pd.NaT,
+        "end_time": pd.Timestamp(c["time"][i1]) if has_time else pd.NaT,
+        "start_row_in_file": int(c["row_in_file"][i0]),
+        "end_row_in_file": int(c["row_in_file"][i1]),
     }
 
 
@@ -1681,85 +1692,102 @@ def map_filename(dataset, vessel) -> str:
     return f"{safe(dataset)}__{safe(vessel)}.png"
 
 
-def write_maps(results, folder: Path):
+MAP_KEYS = ("dataset", "vessel", "track", "lines", "blocks", "geometry", "areas", "area_hulls",
+            "predictions")
+PALETTE = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf",
+           "#8c564b", "#e377c2", "#bcbd22", "#7f7f7f"]
+
+
+def draw_map(r: dict):
+    """
+    Quick-look PNG (bytes) of one vessel's result: whole track, survey lines and blocks,
+    and a zoom on the survey areas. Only MAP_KEYS of the result are used. None without
+    matplotlib or a track.
+    """
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
-        return
+        return None
+    if len(r["track"]) < 2:
+        return None
+    palette = PALETTE
+    lon, lat = np.array(r["track"]).T
+    lat0, lon0 = float(np.median(lat)), float(np.median(lon))
+    proj = lambda la, lo: to_local_xy(la, lo, lat0, lon0)
+    x, y = proj(lat, lon)
+
+    zoom = r["areas"] and len(r["area_hulls"]) > 0
+    fig, axes = plt.subplots(1, 2 if zoom else 1, figsize=(18 if zoom else 10, 9))
+    axes = np.atleast_1d(axes)
+
+    for ax in axes:
+        ax.plot(x, y, color="0.75", lw=0.7, zorder=1, label="track (cleaned)")
+        for l in r["lines"]:
+            lx, ly = proj([l["start_lat"], l["end_lat"]], [l["start_lon"], l["end_lon"]])
+            if l["block_id"] > 0:
+                ax.annotate("", xy=(lx[1], ly[1]), xytext=(lx[0], ly[0]), zorder=3,
+                            arrowprops=dict(arrowstyle="-|>", lw=1.4,
+                                            color=palette[(l["block_id"] - 1) % len(palette)]))
+            else:
+                ax.plot(lx, ly, color="0.45", lw=0.9, ls=":", zorder=2)
+        for b in r["blocks"]:
+            ring = r["geometry"][b["block_id"]]["hull"]
+            if len(ring) >= 3:
+                hx, hy = proj([p[1] for p in ring + ring[:1]], [p[0] for p in ring + ring[:1]])
+                col = palette[(b["block_id"] - 1) % len(palette)]
+                ax.fill(hx, hy, color=col, alpha=0.10, zorder=0,
+                        label=f"block {b['block_id']}: {b['n_lines']} lines, "
+                              f"{b['median_spacing_km']:.1f} km spacing ({b['confidence']})")
+        for a in r["areas"]:
+            ring = r["area_hulls"][a["area_id"]]
+            if len(ring) >= 3:
+                hx, hy = proj([p[1] for p in ring + ring[:1]], [p[0] for p in ring + ring[:1]])
+                ax.plot(hx, hy, color="k", lw=1.2, ls="-.", zorder=2)
+                ax.text(hx.max(), hy.max(), f" AREA {a['area_id']}", fontsize=9,
+                        fontweight="bold", va="bottom")
+        for p in r["predictions"]:
+            px, py = proj([p["start_lat"], p["end_lat"]], [p["start_lon"], p["end_lon"]])
+            ax.annotate("", xy=(px[1], py[1]), xytext=(px[0], py[0]), zorder=4,
+                        arrowprops=dict(arrowstyle="-|>", lw=1.8, ls="--", color="black"))
+        ax.scatter([x[-1]], [y[-1]], s=110, marker="*", color="gold", edgecolor="k",
+                   zorder=5, label="last fix")
+        ax.set_aspect("equal")
+        ax.set_xlabel("km east of track centre")
+        ax.set_ylabel("km north of track centre")
+        ax.grid(alpha=0.3)
+
+    axes[0].plot([], [], color="0.45", ls=":", label="straight line, not in a block")
+    if r["areas"]:
+        axes[0].plot([], [], "k-.", label="survey area outline")
+    if r["predictions"]:
+        axes[0].plot([], [], "k--", label="predicted next lines")
+    axes[0].set_title(f"{r['dataset']} / {r['vessel']}: whole track")
+    axes[0].legend(loc="upper left", fontsize=7)   # "best" is slow
+
+    if zoom:
+        pts = [p for ring in r["area_hulls"].values() for p in ring]
+        pts += [(p[k + "_lon"], p[k + "_lat"]) for p in r["predictions"] for k in ("start", "end")]
+        zx, zy = proj([p[1] for p in pts], [p[0] for p in pts])
+        pad = 5
+        axes[1].set_xlim(zx.min() - pad, zx.max() + pad)
+        axes[1].set_ylim(zy.min() - pad, zy.max() + pad)
+        axes[1].set_title("survey areas (zoomed); arrows show direction of travel")
+
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def write_maps(results, folder: Path):
     folder.mkdir(exist_ok=True)
-    palette = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf",
-               "#8c564b", "#e377c2", "#bcbd22", "#7f7f7f"]
-
     for r in results:
-        if len(r["track"]) < 2:
-            continue
-        lon, lat = np.array(r["track"]).T
-        lat0, lon0 = float(np.median(lat)), float(np.median(lon))
-        proj = lambda la, lo: to_local_xy(la, lo, lat0, lon0)
-        x, y = proj(lat, lon)
-
-        zoom = r["areas"] and len(r["area_hulls"]) > 0
-        fig, axes = plt.subplots(1, 2 if zoom else 1, figsize=(18 if zoom else 10, 9))
-        axes = np.atleast_1d(axes)
-
-        for ax in axes:
-            ax.plot(x, y, color="0.75", lw=0.7, zorder=1, label="track (cleaned)")
-            for l in r["lines"]:
-                lx, ly = proj([l["start_lat"], l["end_lat"]], [l["start_lon"], l["end_lon"]])
-                if l["block_id"] > 0:
-                    ax.annotate("", xy=(lx[1], ly[1]), xytext=(lx[0], ly[0]), zorder=3,
-                                arrowprops=dict(arrowstyle="-|>", lw=1.4,
-                                                color=palette[(l["block_id"] - 1) % len(palette)]))
-                else:
-                    ax.plot(lx, ly, color="0.45", lw=0.9, ls=":", zorder=2)
-            for b in r["blocks"]:
-                ring = r["geometry"][b["block_id"]]["hull"]
-                if len(ring) >= 3:
-                    hx, hy = proj([p[1] for p in ring + ring[:1]], [p[0] for p in ring + ring[:1]])
-                    col = palette[(b["block_id"] - 1) % len(palette)]
-                    ax.fill(hx, hy, color=col, alpha=0.10, zorder=0,
-                            label=f"block {b['block_id']}: {b['n_lines']} lines, "
-                                  f"{b['median_spacing_km']:.1f} km spacing ({b['confidence']})")
-            for a in r["areas"]:
-                ring = r["area_hulls"][a["area_id"]]
-                if len(ring) >= 3:
-                    hx, hy = proj([p[1] for p in ring + ring[:1]], [p[0] for p in ring + ring[:1]])
-                    ax.plot(hx, hy, color="k", lw=1.2, ls="-.", zorder=2)
-                    ax.text(hx.max(), hy.max(), f" AREA {a['area_id']}", fontsize=9,
-                            fontweight="bold", va="bottom")
-            for p in r["predictions"]:
-                px, py = proj([p["start_lat"], p["end_lat"]], [p["start_lon"], p["end_lon"]])
-                ax.annotate("", xy=(px[1], py[1]), xytext=(px[0], py[0]), zorder=4,
-                            arrowprops=dict(arrowstyle="-|>", lw=1.8, ls="--", color="black"))
-            ax.scatter([x[-1]], [y[-1]], s=110, marker="*", color="gold", edgecolor="k",
-                       zorder=5, label="last fix")
-            ax.set_aspect("equal")
-            ax.set_xlabel("km east of track centre")
-            ax.set_ylabel("km north of track centre")
-            ax.grid(alpha=0.3)
-
-        axes[0].plot([], [], color="0.45", ls=":", label="straight line, not in a block")
-        if r["areas"]:
-            axes[0].plot([], [], "k-.", label="survey area outline")
-        if r["predictions"]:
-            axes[0].plot([], [], "k--", label="predicted next lines")
-        axes[0].set_title(f"{r['dataset']} / {r['vessel']}: whole track")
-        axes[0].legend(loc="best", fontsize=7)
-
-        if zoom:
-            pts = [p for ring in r["area_hulls"].values() for p in ring]
-            pts += [(p[k + "_lon"], p[k + "_lat"]) for p in r["predictions"] for k in ("start", "end")]
-            zx, zy = proj([p[1] for p in pts], [p[0] for p in pts])
-            pad = 5
-            axes[1].set_xlim(zx.min() - pad, zx.max() + pad)
-            axes[1].set_ylim(zy.min() - pad, zy.max() + pad)
-            axes[1].set_title("survey areas (zoomed); arrows show direction of travel")
-
-        fig.tight_layout()
-        fig.savefig(folder / map_filename(r["dataset"], r["vessel"]), dpi=110)
-        plt.close(fig)
+        png = draw_map(r)
+        if png:
+            (folder / map_filename(r["dataset"], r["vessel"])).write_bytes(png)
 
 
 # ============================================================

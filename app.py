@@ -22,6 +22,7 @@ import io
 import json
 import re
 import tempfile
+import uuid
 import warnings
 import zipfile
 from dataclasses import asdict
@@ -333,8 +334,10 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            # quick-look PNGs and the Excel workbook are slow (about two thirds of the time
+            # for many ships) and rarely opened: they are made on request instead (see below)
             results, notes, n_rows = spd.run(
-                sources, cfg, out, workers=1, make_maps=True,
+                sources, cfg, out, workers=1, make_maps=False,
                 identities={(ds, vs): {"mmsi": m, "flag": f, "name": n, "source": how, "imo": imo}
                             for ds, vs, m, f, n, how, imo in identities})
 
@@ -344,12 +347,23 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
                 tables[key] = pd.read_csv(out / f"{key}.csv", low_memory=False)
             except (FileNotFoundError, pd.errors.EmptyDataError):
                 tables[key] = pd.DataFrame()
-        maps = {p.name: p.read_bytes() for p in sorted((out / "maps").glob("*.png"))}
+        maps = {spd.map_filename(r["dataset"], r["vessel"]): {k: r[k] for k in spd.MAP_KEYS}
+                for r in results}
         geojson = json.loads((out / "survey_results.geojson").read_text())
-        xlsx = _excel(tables)
-        zip_bytes = _zip_folder(out, extra={"survey_results.xlsx": xlsx})
+        zip_bytes = _zip_folder(out, extra={})
     return {"notes": notes, "n_rows": n_rows, "tables": tables, "maps": maps,
-            "geojson": geojson, "zip": zip_bytes, "xlsx": xlsx}
+            "geojson": geojson, "zip": zip_bytes, "id": uuid.uuid4().hex}
+
+
+def on_request(res: dict, what: str, make):
+    """A file made only when asked for, once per analysis result (kept for the session)."""
+    made = st.session_state.setdefault("made_files", {})
+    key = (res["id"], what)
+    if key not in made:
+        if len(made) > 40:                 # keep the session small
+            made.clear()
+        made[key] = make()
+    return made[key]
 
 
 def _excel(tables: dict) -> bytes:
@@ -1499,9 +1513,14 @@ else:
         cols = [c for c in ["line_ahead", "kind", "start_lat", "start_lon", "end_lat", "end_lon",
                             "heading_deg", "hours_after_last_fix_start", "est_start_utc"] if c in v_preds]
         st.dataframe(v_preds[cols], hide_index=True, width="stretch")
-    png = res["maps"].get(spd.map_filename(ds, vs))
-    if png:
-        with st.expander("Detector map (PNG)"):
+    drawn = res["maps"].get(spd.map_filename(ds, vs))
+    if drawn and len(drawn["track"]) > 1 and st.toggle(
+            "Show the detector's quick-look map (PNG)", key=f"png|{ds}|{vs}",
+            help="The ship's whole track with every straight line, survey block and survey area, "
+                 "drawn by the detector. Takes a second or two."):
+        with st.spinner("Drawing..."):
+            png = on_request(res, f"png|{ds}|{vs}", lambda: spd.draw_map(drawn))
+        if png:
             st.image(png, width="stretch")
 
 st.markdown("<div style='font-size:0.8rem;opacity:0.75'>Library tracks for Chinese survey vessels: "
@@ -1530,9 +1549,14 @@ for tab, key in zip(tabs, TABLES):
 st.subheader("Download")
 d1, d2, d3, d4 = st.columns(4)
 d1.download_button("Everything (ZIP)", res["zip"], "survey_results.zip", "application/zip",
-                   help="CSVs, Excel workbook, GeoJSON (combined and per layer) and map images.")
-d2.download_button("Excel workbook", res["xlsx"], "survey_results.xlsx",
-                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                   help="CSVs and GeoJSON (combined and per layer). The Excel workbook is next to it.")
+xlsx_ready = (res["id"], "xlsx") in st.session_state.get("made_files", {})
+if xlsx_ready or d2.button("Prepare Excel workbook", help="One sheet per table. Large analyses take a "
+                                                         "while (the positions sheet has a row per position)."):
+    with st.spinner("Writing the Excel workbook..."):
+        xlsx = on_request(res, "xlsx", lambda: _excel(T))
+    d2.download_button("Excel workbook", xlsx, "survey_results.xlsx",
+                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 d3.download_button("GeoJSON (QGIS / ArcGIS)", json.dumps(res["geojson"]), "survey_results.geojson",
                    "application/geo+json")
 d4.download_button("Interactive map (HTML)", map_html(res["geojson"], vessels, None), "survey_map.html",

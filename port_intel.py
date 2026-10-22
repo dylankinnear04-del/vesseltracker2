@@ -264,6 +264,13 @@ def _water_path(a, b, grid, pad_deg: float):
     return out
 
 
+@lru_cache(maxsize=4096)
+def _detour(a: tuple, b: tuple, pad_deg: float):
+    """_water_path, remembered: routes to different ports share the same legs."""
+    path = _water_path(list(a), list(b), _land_grid(), pad_deg)
+    return tuple(tuple(p) for p in path) if path else None
+
+
 def _around_land(coords: list) -> list:
     """Route [[lon, lat], ...] with every leg that crosses land replaced by a path over water."""
     grid = _land_grid()
@@ -276,10 +283,10 @@ def _around_land(coords: list) -> list:
         if _leg_hits_land(a, b, grid, ends=(k == 0, k == last)):
             span = max(abs(b[0] - a[0]), abs(b[1] - a[1]))
             for pad in (max(0.5, 0.3 * span), max(2.0, span), max(8.0, 3 * span)):
-                detour = _water_path(a, b, grid, pad)
+                detour = _detour(tuple(np.round(a, 4)), tuple(np.round(b, 4)), round(pad, 3))
                 if detour:
                     break
-        out += detour[1:] if detour else [b]
+        out += [list(p) for p in detour[1:]] if detour else [b]
     return out
 
 
