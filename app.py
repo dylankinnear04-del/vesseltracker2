@@ -957,8 +957,9 @@ with st.container(border=True, key="howto"):
         "1. **Choose ships** below. The site opens on the **deep-sea mining ships**. Ships are "
         "grouped by the country whose flag they fly: open a country, tick the ships you want and "
         "press **Show chosen ships on the map**.\n"
-        "2. **Pick a timeframe.** The site opens on the **latest week** of data; choose *All data* "
-        "to see a ship's whole history.\n"
+        "2. **Pick a timeframe.** The site opens on the **last 6 months** of data, about what it "
+        "takes to catch these ships surveying; choose *Latest week* for where they are now, or "
+        "*All data* for their whole history.\n"
         "3. **Read the map.** Each ship's track is a thin line. Where a ship sailed a survey "
         "pattern, its survey lines are drawn bold, inside a dashed outline. Orange and red "
         "patches are **hotspots**, places several ships surveyed. Dashed lines lead from each "
@@ -1103,16 +1104,19 @@ else:
         if span_from and span_to:
             st.subheader("Step 2 · Pick a timeframe (optional)")
             t_col, r_col = st.columns([2, 3])
-            frame = t_col.selectbox("Timeframe", ["Latest week", "All data", "Last 7 days", "Last 30 days",
-                                                  "Last 90 days", "Last 365 days", "Custom range"],
+            frame = t_col.selectbox("Timeframe", ["Last 6 months", "Latest week", "All data", "Last 7 days",
+                                                  "Last 30 days", "Last 90 days", "Last 365 days", "Custom range"],
                                     key="lib_frame",
-                                    help="'Latest week' is the 7 days up to the newest position of the chosen "
-                                         "ships (Global Fishing Watch data arrives about 4 days late). "
+                                    help="'Last 6 months' and 'Latest week' end at the newest position of the "
+                                         "chosen ships (Global Fishing Watch data arrives about 4 days late). "
+                                         "Six months is about what it takes to catch the deep-sea mining "
+                                         "ships surveying; a single week rarely holds a whole survey. "
                                          "'Last N days' counts back from each ship's own newest position, "
                                          "so ships tracked in different years can be compared.")
-            last_n = int(frame.split()[1]) if frame.startswith("Last") else None
-            if frame == "Latest week":
-                start, end = max(span_from, span_to - datetime.timedelta(days=6)), span_to
+            last_n = int(frame.split()[1]) if frame.startswith("Last") and frame.endswith("days") else None
+            shared = {"Latest week": 7, "Last 6 months": 182}.get(frame)   # one window for all ships
+            if shared:
+                start, end = max(span_from, span_to - datetime.timedelta(days=shared - 1)), span_to
             if frame == "Custom range":
                 picked = r_col.date_input("Dates", value=(span_from, span_to), min_value=span_from,
                                           max_value=span_to, key="lib_dates")
