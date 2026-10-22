@@ -137,15 +137,30 @@ SHORE_COST = 3.0       # ...because water this close to land counts this many ti
 DIRECT_MAX_KM = 1500.0 # ports closer than this also get a direct over-water route
 
 
+class _PackedLand:
+    """
+    The land grid kept as packed bits (13 MB instead of 104 MB unpacked: the web app
+    has about 1 GB). Indexed like a bool array with [rows, cols] index arrays.
+    """
+
+    def __init__(self, bits, shape):
+        self.bits, self.shape = bits, shape
+
+    def __getitem__(self, key):
+        rows, cols = np.broadcast_arrays(*key)
+        byte = self.bits[rows, cols >> 3]
+        return ((byte >> (7 - (cols & 7))) & 1).astype(bool)
+
+
 @lru_cache(maxsize=1)
 def _land_grid():
-    """(land bool array, degrees per cell), or None without the file."""
+    """(land grid indexed like a bool array, degrees per cell), or None without the file."""
     try:
         z = np.load(LANDMASK)
     except OSError:
         return None
     h, w = (int(v) for v in z["shape"])
-    return np.unpackbits(z["land_bits"], axis=1)[:, :w].astype(bool), float(z["res"])
+    return _PackedLand(np.ascontiguousarray(z["land_bits"]), (h, w)), float(z["res"])
 
 
 def _cell(lat, lon, res, shape):

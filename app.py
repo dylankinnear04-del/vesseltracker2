@@ -17,6 +17,7 @@ port_intel.py with reference_data/.
 from __future__ import annotations
 
 import datetime
+import gc
 import html
 import io
 import json
@@ -311,7 +312,8 @@ class LiveSeabedAreas(MacroElement):
 # RUNNING THE DETECTOR
 # ============================================================
 
-@st.cache_data(show_spinner=False, max_entries=6)
+# Streamlit Community Cloud gives an app about 1 GB: keep few big results cached
+@st.cache_data(show_spinner=False, max_entries=2)
 def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
     """
     Run the detector and collect everything the page shows.
@@ -351,6 +353,8 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
                 for r in results}
         geojson = json.loads((out / "survey_results.geojson").read_text())
         zip_bytes = _zip_folder(out, extra={})
+    del results
+    gc.collect()                           # hand the detector's working memory back before the page is built
     return {"notes": notes, "n_rows": n_rows, "tables": tables, "maps": maps,
             "geojson": geojson, "zip": zip_bytes, "id": uuid.uuid4().hex}
 
@@ -744,7 +748,7 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None) -> foli
     return m
 
 
-@st.cache_data(show_spinner=False, max_entries=24)
+@st.cache_data(show_spinner=False, max_entries=4)
 def map_html(geojson: dict, vessels: pd.DataFrame, focus: tuple | None) -> str:
     return build_map(geojson, vessels, focus).get_root().render()
 
@@ -783,7 +787,7 @@ def load_library(stamp: tuple) -> pd.DataFrame:
                       has_data=[n > 0 for n in count])
 
 
-@st.cache_data(show_spinner=False, max_entries=64)
+@st.cache_data(show_spinner=False, max_entries=16)
 def library_track(track: str, stamp: float, start, end) -> bytes:
     """A library track cut to [start, end] (dates), as CSV bytes in its original columns."""
     f = LIBRARY / "tracks" / track
@@ -1536,12 +1540,16 @@ st.caption("Ports: NGA World Port Index (public domain). Sea distances follow a 
 st.subheader("All results")
 tabs = st.tabs(["Vessels", "Nearby ports", "Survey hotspots", "Survey areas", "Survey blocks", "Survey lines",
                 "Rejected patterns", "Predictions", "Positions"])
+SHOW_ROWS = 1000   # every tab is sent to the browser on each run, open or not: keep big ones short
 for tab, key in zip(tabs, TABLES):
     with tab:
         if len(T[key]):
-            df = T[key].copy()
-            text = df.select_dtypes(include="object").columns
+            df = T[key].head(SHOW_ROWS).copy()
+            text = df.select_dtypes(include=["object", "string"]).columns
             df[text] = df[text].fillna("")
+            if len(T[key]) > SHOW_ROWS:
+                st.caption(f"First {SHOW_ROWS:,} of {len(T[key]):,} rows. The full table is in the ZIP "
+                           "download below.")
             st.dataframe(df, hide_index=True, width="stretch")
         else:
             st.write("Nothing found.")
