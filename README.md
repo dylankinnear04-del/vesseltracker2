@@ -29,6 +29,12 @@ the map with the number of ships, and whether ships were there at the same time.
 - `reference_data/world_ports.csv`: about 3,800 ports from the NGA World Port Index (public domain)
 - `reference_data/coastline_ne10m.npz`: the Natural Earth 1:10m coastline (public
   domain) as points every 2 km, for the distance-from-coast check
+- `reference_data/landmask_ne10m.npz`: Natural Earth 1:10m land and minor islands
+  (public domain) as a 1/40 degree land/sea grid. Routes to ports follow shipping
+  lanes (searoute) and every stretch that would cross land is re-routed through
+  the water around it; for nearby ports the shortest way around land is used when
+  the lanes make a detour. Where no over-water route is found, the port keeps its
+  straight-line distance but no line is drawn.
 - `reference_data/ree_sites.csv`: rare-earth processing plants, magnet plants, mines,
   cargo ports and seabed-mineral areas. Curated, with approximate locations; add or
   correct rows freely.

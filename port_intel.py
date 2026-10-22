@@ -15,8 +15,10 @@ Reference lookups used by survey_pattern_detector.py:
 
 A port is "rare-earth linked" when it is (a) one of the logistics ports in
 ree_sites.csv, or (b) within LINK_KM of a processing / magnet site or a mine.
-Distances follow shipping lanes when the searoute package is installed
-and are straight-line otherwise; both are approximate.
+Distances and the routes drawn on the map follow shipping lanes (searoute
+package) and go around land (a land grid made from Natural Earth); for nearby
+ports the shortest way around land is used when the lanes make a detour. All
+approximate.
 """
 
 from __future__ import annotations
@@ -115,11 +117,203 @@ PORT_COLUMNS = ["port", "country", "harbor_size", "sea_km", "sea_nm", "hours_at_
 CANDIDATES = 30   # ports per list re-measured along sea routes (straight-line pre-filter)
 
 
+# ============================================================
+# ROUTES AROUND LAND
+# ============================================================
+# The shipping-lane network (searoute) is coarse: its legs onto and off the
+# network, and some legs near the coast, are straight lines that can cut across
+# headlands and islands. Every leg is checked against a land grid and any leg
+# over land is re-routed through the water cells around it, then smoothed.
+# reference_data/landmask_ne10m.npz: Natural Earth 1:10m land and minor islands
+# (public domain) rasterized to a 1/40 degree (~2.8 km) grid.
+
+LANDMASK = REF / "landmask_ne10m.npz"
+COAST_GAP_KM = 4.0     # a leg may touch land this close to its ends (ports sit on the shore)
+PORT_GAP_KM = 25.0     # ...and this close to a port up a river or deep in a harbour
+APPROACH_KM = 60.0     # a re-routed leg may end this far short of a port it cannot reach by water
+MAX_WINDOW_CELLS = 400 # search window side when re-routing a leg (bigger windows use coarser cells)
+SHORE_BUFFER_KM = 6.0  # routes keep about this far off the coast where there is room...
+SHORE_COST = 3.0       # ...because water this close to land counts this many times its length
+DIRECT_MAX_KM = 1500.0 # ports closer than this also get a direct over-water route
+
+
+@lru_cache(maxsize=1)
+def _land_grid():
+    """(land bool array, degrees per cell), or None without the file."""
+    try:
+        z = np.load(LANDMASK)
+    except OSError:
+        return None
+    h, w = (int(v) for v in z["shape"])
+    return np.unpackbits(z["land_bits"], axis=1)[:, :w].astype(bool), float(z["res"])
+
+
+def _cell(lat, lon, res, shape):
+    row = np.clip(((90 - np.asarray(lat, float)) / res).astype(int), 0, shape[0] - 1)
+    col = (np.floor(((np.asarray(lon, float) + 180) % 360) / res)).astype(int) % shape[1]
+    return row, col
+
+
+def _leg_hits_land(a, b, grid, ends=(True, True)) -> bool:
+    """
+    Does the straight leg a -> b ([lon, lat]) cross land, away from its ends? Each of
+    `ends` is False (check right up to that end), True (allow COAST_GAP_KM of land)
+    or a number of km.
+    """
+    land, res = grid
+    km = float(haversine_km(a[1], a[0], b[1], b[0]))
+    n = max(2, int(km / 1.0) + 1)                   # a sample every km
+    t = np.linspace(0, 1, n)
+    lon, lat = a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])
+    gap0, gap1 = (COAST_GAP_KM if e is True else float(e) for e in ends)
+    keep = (t * km > gap0) & ((1 - t) * km > gap1)
+    if not keep.any():
+        return False
+    hit = land[_cell(lat[keep], lon[keep], res, land.shape)]
+    # clipping the corner of a land cell is below the grid's resolution: it takes
+    # three fixes in a row (~2 km) over land to count as crossing it
+    return bool((hit[:-2] & hit[1:-1] & hit[2:]).any()) if len(hit) >= 3 else False
+
+
+def _water_path(a, b, grid, pad_deg: float):
+    """
+    Shortest path from a to b ([lon, lat], lon may run past +/-180) through
+    water cells of a window around them, smoothed; None if there is none.
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import dijkstra
+
+    land, res = grid
+    lo0, lo1 = min(a[0], b[0]) - pad_deg, max(a[0], b[0]) + pad_deg
+    la0, la1 = max(min(a[1], b[1]) - pad_deg, -85), min(max(a[1], b[1]) + pad_deg, 85)
+    nx, ny = int((lo1 - lo0) / res) + 1, int((la1 - la0) / res) + 1
+    if max(nx, ny) > 24 * MAX_WINDOW_CELLS:
+        return None
+    lons = lo0 + (np.arange(nx) + 0.5) * res
+    lats = la1 - (np.arange(ny) + 0.5) * res
+    gl, gt = np.meshgrid(lons, lats)
+    water = ~land[_cell(gt, gl, res, land.shape)]
+    f = -(-max(nx, ny) // MAX_WINDOW_CELLS)
+    if f > 1:   # big window: coarser cells, wet if any part is water (keeps straits open)
+        ny, nx = -(-ny // f), -(-nx // f)
+        pad = ((0, ny * f - water.shape[0]), (0, nx * f - water.shape[1]))
+        water = np.pad(water, pad).reshape(ny, f, nx, f).any(axis=(1, 3))
+        res = res * f
+        gl, gt = np.meshgrid(lo0 + (np.arange(nx) + 0.5) * res, la1 - (np.arange(ny) + 0.5) * res)
+
+    def nearest_water(p):
+        """Index of the water cell nearest p (the port itself is often a land cell)."""
+        r, c = int((la1 - p[1]) / res), int((p[0] - lo0) / res)
+        for rad in range(0, 25):
+            r0, r1, c0, c1 = max(r - rad, 0), min(r + rad + 1, ny), max(c - rad, 0), min(c + rad + 1, nx)
+            rr, cc = np.nonzero(water[r0:r1, c0:c1])
+            if len(rr):
+                k = np.argmin((rr + r0 - r) ** 2 + (cc + c0 - c) ** 2)
+                return (rr[k] + r0) * nx + cc[k] + c0
+        return None
+
+    s, e = nearest_water(a), nearest_water(b)
+    if s is None or e is None:
+        return None
+    idx = np.arange(ny * nx).reshape(ny, nx)
+    kx = np.cos(np.radians(gt)) * res * 111.32            # km per cell east-west, by row
+    # ships keep off the shore: water within SHORE_BUFFER_KM of land costs more to cross,
+    # so routes stand off headlands but can still thread a strait
+    rad = max(1, int(round(SHORE_BUFFER_KM / (res * 111.0))))
+    dry = np.pad(~water, rad, constant_values=False)
+    near = np.zeros_like(water)
+    for dr in range(-rad, rad + 1):
+        for dc in range(-rad, rad + 1):
+            near |= dry[rad + dr:rad + dr + ny, rad + dc:rad + dc + nx]
+    cost = np.where(near, SHORE_COST, 1.0).ravel()
+    rows, cols, wts = [], [], []
+    wet = water.ravel()
+    for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):       # 8-connected, both directions
+        c0, c1 = max(0, -dc), nx - max(0, dc)
+        A = idx[0:ny - dr, c0:c1].ravel()
+        B = idx[dr:ny, c0 + dc:c1 + dc].ravel()
+        ok = wet[A] & wet[B]
+        w = (np.hypot(dc * kx.ravel()[A[ok]], dr * res * 110.57)
+             * np.maximum(cost[A[ok]], cost[B[ok]]))
+        rows += [A[ok], B[ok]]; cols += [B[ok], A[ok]]; wts += [w, w]
+    g = coo_matrix((np.concatenate(wts), (np.concatenate(rows), np.concatenate(cols))),
+                   shape=(ny * nx, ny * nx)).tocsr()
+    dist, pred = dijkstra(g, indices=s, return_predecessors=True)
+    if not np.isfinite(dist[e]):
+        # the end lies in water the grid cannot reach (a narrow fjord or river): sail to
+        # the nearest reachable water and let the last leg be the harbour approach
+        reach = np.flatnonzero(np.isfinite(dist))
+        gap = haversine_km(gt.flat[reach], gl.flat[reach], b[1], b[0])
+        if not len(reach) or gap.min() > APPROACH_KM:
+            return None
+        e = reach[np.argmin(gap)]
+    path, k = [], e
+    while k != s and k >= 0:
+        path.append(k); k = pred[k]
+    path.append(s)
+    pts = [[float(gl.flat[k]), float(gt.flat[k])] for k in reversed(path)]
+    pts = [list(a)] + pts + [list(b)]
+
+    # string-pull: from each kept point jump to the farthest point still reachable over water
+    out, i = [pts[0]], 0
+    while i < len(pts) - 1:
+        j = len(pts) - 1
+        while j > i + 1 and _leg_hits_land(pts[i], pts[j], grid, ends=(i == 0, j == len(pts) - 1)):
+            j = max(i + 1, i + (j - i) // 2) if j - i > 8 else j - 1
+        out.append(pts[j]); i = j
+    return out
+
+
+def _around_land(coords: list) -> list:
+    """Route [[lon, lat], ...] with every leg that crosses land replaced by a path over water."""
+    grid = _land_grid()
+    if grid is None or len(coords) < 2:
+        return coords
+    out = [coords[0]]
+    last = len(coords) - 2
+    for k, (a, b) in enumerate(zip(coords[:-1], coords[1:])):
+        detour = None
+        if _leg_hits_land(a, b, grid, ends=(k == 0, k == last)):
+            span = max(abs(b[0] - a[0]), abs(b[1] - a[1]))
+            for pad in (max(0.5, 0.3 * span), max(2.0, span), max(8.0, 3 * span)):
+                detour = _water_path(a, b, grid, pad)
+                if detour:
+                    break
+        out += detour[1:] if detour else [b]
+    return out
+
+
+def _inland_km(lat, lon, grid, max_km: float = 120.0) -> float:
+    """How far a port lies from water the grid can resolve (0 on an open coast)."""
+    land, res = grid
+    r, c = _cell(lat, lon, res, land.shape)
+    rad = int(max_km / (res * 111.0))
+    rows = np.arange(r - rad, r + rad + 1)
+    cols = np.arange(c - rad, c + rad + 1) % land.shape[1]
+    rows = rows[(rows >= 0) & (rows < land.shape[0])]
+    rr, cc = np.nonzero(~land[np.ix_(rows, cols)])
+    if not len(rr):
+        return max_km
+    dy = (rows[rr] - r) * res * 110.57
+    dx = (cc - rad) * res * 111.32 * np.cos(np.radians(lat))
+    return float(np.sqrt(dx ** 2 + dy ** 2).min())
+
+
+def route_km(coords) -> float:
+    c = np.asarray(coords, float)
+    return float(haversine_km(c[:-1, 1], c[:-1, 0], c[1:, 1], c[1:, 0]).sum())
+
+
+def _wrap(coords):
+    return [[(x + 180) % 360 - 180, y] for x, y in coords]   # maps split it at the date line
+
+
 def sea_route(lat: float, lon: float, port_lat: float, port_lon: float):
     """
     (km, [[lon, lat], ...]) along shipping lanes, using the searoute package's
     maritime network, or (None, None) without it. Includes the legs from the
-    survey onto the network and from the network into the port.
+    survey onto the network and from the network into the port. Longitudes
+    are left unwrapped (they may run past +/-180); see realistic_route().
     """
     try:
         import searoute
@@ -141,8 +335,63 @@ def sea_route(lat: float, lon: float, port_lat: float, port_lon: float):
     along_180 = on_180[:-1] & on_180[1:] & (np.abs(np.diff(c[:, 1])) > 1)
     if along_180.any() or km > 4 * max(float(haversine_km(lat, lon, port_lat, port_lon)), 50.0):
         return None, None
-    wrapped = [[(x + 180) % 360 - 180, y] for x, y in coords]   # maps split it at the date line
-    return km, wrapped
+    return km, coords
+
+
+def _route_clear(coords, grid, port_gap: float) -> bool:
+    """
+    True if the route stays off land, except within port_gap km of the port along the
+    route (a port up a river, in a fjord or behind a causeway the grid cannot resolve)
+    and its first COAST_GAP_KM.
+    """
+    to_go = np.r_[np.cumsum([route_km([a, b]) for a, b in zip(coords[:-1], coords[1:])][::-1])[::-1], 0.0]
+    for k, (a, b) in enumerate(zip(coords[:-1], coords[1:])):
+        if to_go[k + 1] >= port_gap:           # this leg ends before the port's approach
+            end = False
+        elif to_go[k] <= port_gap:             # wholly inside the approach
+            continue
+        else:                                  # enters the approach part-way
+            end = port_gap - to_go[k + 1]
+        if _leg_hits_land(a, b, grid, ends=(k == 0, end)):
+            return False
+    return True
+
+
+def realistic_route(lat, lon, port_lat, port_lon, lanes=None):
+    """
+    (km, [[lon, lat], ...] wrapped to +/-180, basis) for the map: the shipping-lane
+    route with every stretch over land replaced by a path through the water around
+    it, or for nearby ports (or when the lanes fail) the shortest way around land.
+    Where nothing over water is found the distance is kept and no line is drawn.
+    """
+    straight = float(haversine_km(lat, lon, port_lat, port_lon))
+    direct = [[lon, lat], [port_lon + round((lon - port_lon) / 360) * 360, port_lat]]
+    grid = _land_grid()
+    if grid is None:
+        return (straight, _wrap(direct), "straight line") if lanes is None else \
+            (max(route_km(lanes), straight), _wrap(lanes), "sea route")
+    # ports up a river or deep in a fjord sit behind land the grid cannot resolve
+    port_gap = max(PORT_GAP_KM, _inland_km(port_lat, port_lon, grid) + 10)
+
+    options = []
+    if lanes is not None:
+        coords = _around_land(lanes)
+        if _route_clear(coords, grid, port_gap):
+            options.append(("sea route", coords))
+    if not options or straight <= DIRECT_MAX_KM:
+        # the lane network can make odd detours near the coast (via a hub port, or
+        # through a strait closed by a causeway): the shortest way around land
+        coords = _around_land(direct)
+        if _route_clear(coords, grid, port_gap):
+            options.append(("around land" if len(coords) > 2 else "direct over water", coords))
+    if not options:
+        return straight, [], "straight line (no sea route found)"
+    km = [route_km(c) for _, c in options]
+    best = int(np.argmin(km))
+    if options[0][0] == "sea route" and km[0] <= 1.1 * km[best]:
+        best = 0                                    # shipping lanes win unless clearly longer
+    basis, coords = options[best]
+    return max(km[best], straight), _wrap(coords), basis
 
 
 # category of each row returned by nearby_ports
@@ -174,10 +423,14 @@ def nearby_ports(lat: float, lon: float, n_nearest: int = 8, n_linked: int = 6,
         routes = [sea_route(lat, lon, r.lat, r.lon) for r in pool.itertuples()]
         km = [max(r[0], s) if r[0] is not None else s for r, s in zip(routes, pool["straight_km"])]
         pool["sea_km"] = np.round(km, 1)
-        pool["distance_basis"] = ["sea route" if r[0] is not None else "straight line" for r in routes]
-        pool["route"] = [r[1] if r[1] else [[lon, lat], [p_lon, p_lat]]
-                         for r, p_lon, p_lat in zip(routes, pool["lon"], pool["lat"])]
-        return pool.nsmallest(n, "sea_km").assign(category=category)
+        pool["lanes"] = [r[1] for r in routes]
+        # only the ports kept get their route taken around land (slower), then re-ranked
+        pool = pool.nsmallest(n, "sea_km").copy()
+        real = [realistic_route(lat, lon, r.lat, r.lon, r.lanes) for r in pool.itertuples()]
+        pool["sea_km"] = np.round([x[0] for x in real], 1)
+        pool["route"] = [x[1] for x in real]
+        pool["distance_basis"] = [x[2] for x in real]
+        return pool.drop(columns="lanes").sort_values("sea_km").assign(category=category)
 
     def nearest_and_linked(pool, n, n_link, near_cat, link_cat):
         near = measure(pool, n, near_cat) if len(pool) else pool.iloc[:0]

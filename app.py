@@ -786,6 +786,38 @@ def safe_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", text).strip("_") or "vessel"
 
 
+# ships picked on a first visit: seismic ships that share survey hotspots, so the map
+# shows surveys, a hotspot and port routes straight away
+DEFAULT_MMSI = ["413491890", "413331770", "413341680", "412301240", "413305460"]
+FLAG_CODES = {"China": "CN", "France": "FR", "Japan": "JP", "United States": "US", "Germany": "DE",
+              "Russia": "RU", "Denmark": "DK", "Norway": "NO", "South Korea": "KR", "India": "IN",
+              "Malta": "MT", "Marshall Islands": "MH", "Saint Kitts and Nevis": "KN", "Taiwan": "TW",
+              "United Kingdom": "GB", "Netherlands": "NL", "Belgium": "BE", "Australia": "AU",
+              "Canada": "CA", "Singapore": "SG", "Hong Kong": "HK", "Panama": "PA", "Liberia": "LR",
+              "Bahamas": "BS", "Cyprus": "CY", "Italy": "IT", "Spain": "ES", "Brazil": "BR",
+              "Philippines": "PH", "Vietnam": "VN", "Indonesia": "ID", "Malaysia": "MY"}
+
+
+def flag_emoji(country: str) -> str:
+    code = FLAG_CODES.get(country)
+    return "".join(chr(0x1F1E6 + ord(ch) - ord("A")) for ch in code) if code else "🏳️"
+
+
+KIND_ORDER = ["Research / survey ship", "Seismic ship (oil & gas)", "Other ship", "Coast guard"]
+
+
+def ship_kind(ship_type: str) -> str:
+    """The catalog's ship type in plain words, for grouping and filtering."""
+    t = str(ship_type).lower()
+    if "coast guard" in t:
+        return "Coast guard"
+    if "seismic" in t and "research" not in t:
+        return "Seismic ship (oil & gas)"
+    if re.search(r"research|survey|hydrographic|geolog|icebreaker", t):
+        return "Research / survey ship"
+    return "Other ship"
+
+
 # ============================================================
 # PAGE
 # ============================================================
@@ -833,8 +865,9 @@ h3 { margin-top: 1.6rem !important; }
 </style>""", unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("Settings")
-    st.caption("The defaults suit most survey vessels. Changes re-run the analysis.")
+    st.header("Advanced settings")
+    st.caption("You don't need to change these: the defaults suit most survey ships. "
+               "Changes re-run the analysis.")
     defaults = asdict(spd.Config())
     if st.button("Reset to defaults"):
         for name in defaults:
@@ -897,56 +930,151 @@ def _masthead_svg() -> str:
 
 st.markdown(
     '<header class="masthead"><div><h1>Survey Pattern Detector</h1>'
-    "<p>Finds lawnmower seafloor-survey patterns in AIS vessel tracks and puts them on one world map. "
-    "For each survey it lists the nearest ports, marking those linked to rare-earth processing and "
-    "those in the vessel's own flag state. Pick ships from the library or upload your own exports: "
-    f"each ship or file gets its own map layer.</p></div>{_masthead_svg()}</header>",
+    "<p>Shows where ships have been mapping the seabed. Ships that survey the seafloor sail back "
+    "and forth in tight parallel lines, like mowing a lawn; this site finds that pattern in their "
+    "position reports, puts each survey on a world map, shows where several ships surveyed the same "
+    "place, and traces the sea routes to the ports they would return to, highlighting ports "
+    f"linked to rare-earth minerals.</p></div>{_masthead_svg()}</header>",
     unsafe_allow_html=True)
 
-# --- ship library: search, pick ships, pick a timeframe ---------------------------
+# --- how to use ---------------------------------------------------------------
+with st.container(border=True, key="howto"):
+    st.markdown(
+        "**How to use this site**\n\n"
+        "1. **Choose ships** below. They are grouped by the country whose flag they fly: open a "
+        "country, tick the ships you want and press **Show chosen ships on the map**.\n"
+        "2. **Pick a timeframe** if you only want recent activity (all data is used by default).\n"
+        "3. **Read the map.** Each ship's track is a thin line. Where a ship sailed a survey "
+        "pattern, its survey lines are drawn bold, inside a dashed outline. Orange and red "
+        "patches are **hotspots**, places several ships surveyed. Dashed lines lead from each "
+        "survey to the ports the ship would most likely sail to. Click anything for details, "
+        "or pick one ship in the **Vessel** menu above the map to zoom in on it.")
+    with st.expander("What am I looking at?"):
+        st.markdown(
+            "Ships that map the seabed sail a **lawnmower pattern**: long straight lines side by "
+            "side, turning at the end of each line and coming back the other way, a little to one "
+            "side, so that together the lines cover the whole area (like mowing a lawn). This "
+            "site looks for that pattern in ships' position reports (AIS). Ferries, patrol "
+            "boats and ships going back and forth along a coast can look similar, so those "
+            "are filtered out: a survey has to run line after line without long breaks, keep "
+            "covering new ground, stay offshore and move at survey speed.\n\n"
+            "- **Survey area**: where one ship surveyed.\n"
+            "- **Hotspot**: an area surveyed by several ships, or more than once. Several ships "
+            "at the same time suggests a coordinated campaign.\n"
+            "- **Ports**: for each survey, the nearest ports, the nearest ports of the ship's own "
+            "country, and ports linked to rare-earth minerals (near a processing plant or mine, "
+            "or known to handle rare-earth cargo). Routes follow shipping lanes and go around land.\n"
+            "- **Surveying now**: the ship was still running survey lines at its last position; "
+            "pink dashed lines show where its next lines would fall.")
+
+# --- step 1: choose ships, grouped by flag -------------------------------------------
 lib = load_library(library_files())
 groups, lib_ids = [], []
-st.subheader("Ship library")
+st.subheader("Step 1 · Choose ships")
 if not len(lib):
     st.info("No ship library found (library/vessels.csv). Upload AIS files below instead.")
 else:
-    s_col, f_col, d_col = st.columns([3, 2, 1])
-    query = s_col.text_input("Search ships", placeholder="Name, MMSI, IMO, operator...",
-                             key="lib_query")
-    lib_flags = sorted({f for f in lib["flag"] if f})
-    flag_pick = f_col.multiselect("Flag", lib_flags, key="lib_flags", placeholder="All flags")
-    with_data = d_col.toggle("With data only", value=False, key="lib_with_data")
+    lib = lib.assign(kind=lib["ship_type"].map(ship_kind), flag=lib["flag"].replace("", "Unknown"))
+    if "lib_selected" not in st.session_state:   # first visit: a few ships that show a hotspot
+        start_with = lib[lib["mmsi"].isin(DEFAULT_MMSI) & lib["has_data"]]["name"]
+        st.session_state["lib_selected"] = set(start_with) or set(lib[lib["has_data"]]["name"].head(5))
+    selected = st.session_state["lib_selected"]
+    st.session_state.setdefault("lib_ver", 0)
+
+    q_col, k_col, d_col = st.columns([3, 3, 2])
+    query = q_col.text_input("Find a ship", placeholder="Name, MMSI, IMO or operator", key="lib_query")
+    kinds = k_col.multiselect("Kind of ship", [k for k in KIND_ORDER if k in set(lib["kind"])], key="lib_kinds",
+                              placeholder="All kinds")
+    with_data = d_col.toggle("Only ships with data", value=True, key="lib_with_data",
+                             help="Ships without position data are on the watchlist but cannot be analysed yet.")
     view = lib
     if query:
         cols = [c for c in ("name", "mmsi", "imo", "callsign", "operator", "ship_type", "notes") if c in lib]
-        text = lib[cols].agg(" ".join, axis=1)
-        view = view[text.str.contains(re.escape(query), case=False)]
-    if flag_pick:
-        view = view[view["flag"].isin(flag_pick)]
+        view = view[view[cols].agg(" ".join, axis=1).str.contains(re.escape(query), case=False)]
+    if kinds:
+        view = view[view["kind"].isin(kinds)]
     if with_data:
         view = view[view["has_data"]]
-    shown_lib = view.assign(status=view["has_data"].map({True: "data", False: "no data yet"}))
-    st.dataframe(shown_lib[[c for c in ["name", "flag", "ship_type", "mmsi", "imo", "callsign", "built", "operator",
-                                        "status", "data_from", "data_to", "positions", "notes", "source"]
-                            if c in shown_lib]],
-                 hide_index=True, width="stretch", height=min(38 * (len(view) + 1) + 3, 360),
-                 column_config={"name": "Ship", "flag": "Flag", "ship_type": "Type", "mmsi": "MMSI",
-                                "imo": "IMO", "callsign": "Call sign", "built": "Built",
-                                "operator": "Operator", "status": "Data", "source": "Identity source",
-                                "data_from": "From", "data_to": "To", "positions": "Positions",
-                                "notes": "Notes"})
 
+    b1, b2, b3, _ = st.columns([2, 2, 2, 3])
     have = view[view["has_data"]]
-    pick_names = st.multiselect(
-        "Ships to analyse", list(have["name"]), default=list(have["name"])[:5], key="lib_pick",
-        help="Only ships with track data can be analysed. Type to search.",
-        placeholder="Choose ships with data")
-    chosen = lib[lib["name"].isin(pick_names) & lib["has_data"]]
+    if b1.button(f"Choose all {len(have)} listed", disabled=not len(have), width="stretch",
+                 help="Every ship with data that matches the search and filters above."):
+        selected |= set(have["name"])
+        st.session_state["lib_ver"] += 1
+    if b2.button("All Chinese ships", width="stretch",
+                 help="Every ship with data that flies the Chinese flag."):
+        selected |= set(lib[(lib["flag"] == "China") & lib["has_data"]]["name"])
+        st.session_state["lib_ver"] += 1
+    if b3.button("Clear choice", disabled=not selected, width="stretch"):
+        selected.clear()
+        st.session_state["lib_ver"] += 1
+
+    # one table per country; a version number in the keys starts the tables afresh after
+    # the buttons above or a submit, and the filters in the keys keep rows and ticks matched
+    tag = f"{st.session_state['lib_ver']}|{query}|{','.join(kinds)}|{with_data}"
+    by_country = view.groupby("flag", sort=False).size().sort_values(ascending=False)
+    edited = {}
+    with st.form("lib_form", border=False):
+        if not len(view):
+            st.info("No ships match. Clear the search or the filters.")
+        for country, n in by_country.items():
+            rows = view[view["flag"] == country]
+            rows = rows.assign(_on=~rows["name"].isin(selected), _nodata=~rows["has_data"],
+                               _kind=rows["kind"].map(KIND_ORDER.index)).sort_values(
+                ["_on", "_nodata", "_kind", "name"])         # chosen ships first, then by kind
+            n_on = int(rows["name"].isin(selected).sum())
+            label = (f"{flag_emoji(country)} **{country}** · {n} ship{'s' if n != 1 else ''}"
+                     + (f" · :primary[{n_on} chosen]" if n_on else ""))
+            with st.expander(label, expanded=bool(n_on or query or len(by_country) == 1)):
+                table = pd.DataFrame({
+                    "show": rows["name"].isin(selected).to_numpy(),
+                    "name": rows["name"].to_numpy(),
+                    "kind": rows["kind"].to_numpy(),
+                    "operator": rows.get("operator", pd.Series([""] * len(rows))).to_numpy(),
+                    "data": [f"{a} → {b}" if h else "no data yet"
+                             for a, b, h in zip(rows["data_from"], rows["data_to"], rows["has_data"])],
+                    "positions": rows["positions"].to_numpy(),
+                })
+                edited[country] = (rows, st.data_editor(
+                    table, key=f"lib_table|{country}|{tag}", hide_index=True, width="stretch",
+                    disabled=["name", "kind", "operator", "data", "positions"],
+                    column_config={
+                        "show": st.column_config.CheckboxColumn("Show", help="Tick to put this ship on the map"),
+                        "name": "Ship", "kind": "Kind", "operator": "Operator",
+                        "data": "Position data", "positions": st.column_config.NumberColumn("Positions")}))
+        go = st.form_submit_button("Show chosen ships on the map", type="primary")
+    if go:
+        skipped = []
+        for rows, table in edited.values():
+            for name, on, has in zip(rows["name"], table["show"], rows["has_data"]):
+                if on and has:
+                    selected.add(name)
+                else:
+                    selected.discard(name)
+                    if on:
+                        skipped.append(name)
+        st.session_state["lib_ver"] += 1
+        if skipped:
+            st.session_state["lib_skipped"] = skipped
+        st.rerun()
+    if st.session_state.pop("lib_skipped", None):
+        st.caption("Ships with no position data yet were left out.")
+
+    chosen = lib[lib["name"].isin(selected) & lib["has_data"]]
+    if len(chosen):
+        names = sorted(chosen["name"])
+        st.success(f"**{len(chosen)} ship{'s' if len(chosen) != 1 else ''} on the map:** "
+                   + ", ".join(names[:12]) + (f" and {len(names) - 12} more" if len(names) > 12 else "")
+                   + (". Many ships take a few minutes to analyse." if len(names) > 20 else ""))
+    else:
+        st.info("No ships chosen yet: tick some above and press **Show chosen ships on the map**.")
     if len(chosen):
         span_from = min(d for d in chosen["data_from"] if d) if chosen["data_from"].notna().any() else None
         span_to = max(d for d in chosen["data_to"] if d) if chosen["data_to"].notna().any() else None
         start, end = span_from, span_to
         if span_from and span_to:
+            st.subheader("Step 2 · Pick a timeframe (optional)")
             t_col, r_col = st.columns([2, 3])
             frame = t_col.selectbox("Timeframe", ["All data", "Last 7 days", "Last 30 days",
                                                   "Last 90 days", "Last 365 days", "Custom range"],
@@ -975,15 +1103,15 @@ else:
             lib_ids.append((row["name"], None, row["mmsi"], row["flag"], row["name"], "library",
                             row.get("imo", "")))
 
-st.subheader("Your own files")
-uploads = st.file_uploader("AIS position files", type=UPLOAD_TYPES, accept_multiple_files=True,
-                           help="CSV, TSV, TXT or Excel; one ship or many per file. Columns such as "
-                                "Latitude/Longitude, Timestamp, MMSI, SOG, COG, ship name and type "
-                                "are recognised automatically. Up to 200 MB per file.")
-separate = True
-if uploads and len(uploads) > 1:
-    separate = not st.toggle("Combine all files into one dataset", value=False,
-                             help="Use this when the files are parts of one export, e.g. one file per day.")
+with st.expander("Or analyse your own AIS files"):
+    uploads = st.file_uploader("AIS position files", type=UPLOAD_TYPES, accept_multiple_files=True,
+                               help="CSV, TSV, TXT or Excel; one ship or many per file. Columns such as "
+                                    "Latitude/Longitude, Timestamp, MMSI, SOG, COG, ship name and type "
+                                    "are recognised automatically. Up to 200 MB per file.")
+    separate = True
+    if uploads and len(uploads) > 1:
+        separate = not st.toggle("Combine all files into one dataset", value=False,
+                                 help="Use this when the files are parts of one export, e.g. one file per day.")
 if uploads:
     taken = {g[0] for g in groups}
     if separate:
@@ -1104,7 +1232,9 @@ focus = choices[pick]
 if not len(shown):
     st.info("No vessels have the chosen flags.")
 
-st.subheader("World map")
+st.subheader("Step 3 · Explore the results")
+st.caption("Pick one ship in **Vessel** to zoom to it and see its details below the map. "
+           "Turn map layers on and off with the stack icon at the top right of the map.")
 page_map = map_html(res["geojson"], shown, focus)
 components.html(page_map, height=640)
 legend = [(c, "●", k) for k, c in LINK_COLORS.items()]
@@ -1336,7 +1466,8 @@ st.markdown("<div style='font-size:0.8rem;opacity:0.75'>Library tracks for Chine
             "(CC BY-NC 4.0; hourly positions on a ~1 km grid). US reference tracks: NOAA Marine Cadastre "
             "(public domain).</div>", unsafe_allow_html=True)
 st.caption("Ports: NGA World Port Index (public domain). Sea distances follow a shipping-lane network "
-           "(searoute package) and are straight-line where no reliable route exists. Rare-earth sites "
+           "(searoute package) and go around land (Natural Earth 1:10m land, public domain); for nearby "
+           "ports the shortest way around land is used where the lanes make a detour. Rare-earth sites "
            "are a curated list with approximate locations (reference_data/ree_sites.csv); verify "
            "before relying on them.")
 
