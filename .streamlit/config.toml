@@ -1,0 +1,35 @@
+# Look borrowed from a hydrographic chart: deep water is white, shoals are pale blue, and
+# magenta marks cautions. Dark mode follows the night palette of a chart display (ECDIS).
+[theme]
+font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+headingFont = "Newsreader:https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap"
+baseFontSize = 15
+baseRadius = "0.2rem"
+buttonRadius = "0.2rem"
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#A3166E"
+backgroundColor = "#FBFDFE"
+secondaryBackgroundColor = "#EEF5F9"
+textColor = "#13222E"
+linkColor = "#1D5C8C"
+borderColor = "#C9DAE5"
+dataframeHeaderBackgroundColor = "#E4EFF5"
+
+[theme.light.sidebar]
+backgroundColor = "#D9EAF3"
+secondaryBackgroundColor = "#F4F9FC"
+
+[theme.dark]
+primaryColor = "#E46AB8"
+backgroundColor = "#07131D"
+secondaryBackgroundColor = "#0F2231"
+textColor = "#CFDCE5"
+linkColor = "#7FB6DA"
+borderColor = "#22394B"
+dataframeHeaderBackgroundColor = "#0F2231"
+
+[theme.dark.sidebar]
+backgroundColor = "#0B1B28"
+secondaryBackgroundColor = "#122A3C"
