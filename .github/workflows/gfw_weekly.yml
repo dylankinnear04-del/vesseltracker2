@@ -33,7 +33,7 @@ jobs:
       - name: Install
         run: pip install "pandas>=2.0"
 
-      - name: Fetch the last two months (re-fetching overlaps safely: tracks are merged)
+      - name: Fetch the last two months (overlaps are merged, not duplicated)
         env:
           GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
         run: |
