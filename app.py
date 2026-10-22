@@ -729,6 +729,46 @@ def safe_name(text: str) -> str:
 
 st.set_page_config(page_title="Survey Pattern Detector", page_icon=":ship:", layout="wide")
 
+# Colours and fonts live in .streamlit/config.toml; this adds the masthead, the metrics band and
+# the legend. Headings are italic like the water names on a nautical chart.
+st.markdown("""<style>
+h1, h2, h3, h4 { font-style: italic; letter-spacing: -0.01em; }
+h3 { margin-top: 1.6rem !important; }
+[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
+.st-key-metrics { background: rgba(120, 175, 205, 0.16); border-left: 3px solid #A3166E;
+  padding: 0.9rem 1.2rem 0.4rem; border-radius: 0.2rem; }
+.st-key-legend { font-size: 0.85rem; line-height: 1.5; }
+.legend-keys { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin-bottom: 0.5rem; }
+.legend-keys span { white-space: nowrap; }
+.legend-keys b { display: inline-block; width: 1.1em; font-weight: 400; }
+.legend-help { opacity: 0.75; max-width: 80ch; }
+.masthead { display: grid; grid-template-columns: minmax(0, 36rem) minmax(0, 1fr); gap: 2rem;
+  align-items: end; padding: 0.5rem 0 1.4rem; border-bottom: 1px solid rgba(120, 160, 185, 0.45);
+  margin-bottom: 0.6rem; }
+.masthead h1 { font-size: clamp(2.3rem, 5vw, 3.6rem); line-height: 1.02; margin: 0 0 0.8rem;
+  padding: 0; font-weight: 500; }
+.masthead p { max-width: 62ch; line-height: 1.6; margin: 0; opacity: 0.85; }
+.masthead svg { width: 100%; max-width: 30rem; height: auto; justify-self: end; overflow: visible; }
+.masthead .run { fill: none; stroke: #C02C86; stroke-width: 2.2; stroke-linecap: round;
+  stroke-linejoin: round; stroke-dasharray: 2400; stroke-dashoffset: 2400;
+  animation: sweep 3.2s cubic-bezier(.45, .05, .35, 1) .2s forwards; }
+.masthead .transit { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-dasharray: 2 5;
+  opacity: 0.45; }
+.masthead .contour { fill: none; stroke: #5D93B5; stroke-width: 1; opacity: 0.5; }
+.masthead .sounding { font: italic 11px "Newsreader", serif; fill: currentColor; opacity: 0.45; }
+.masthead .ship { fill: #C02C86; opacity: 0; animation: arrive .3s ease-out 3.3s forwards; }
+@keyframes sweep { to { stroke-dashoffset: 0; } }
+@keyframes arrive { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .masthead .run { animation: none; stroke-dashoffset: 0; }
+  .masthead .ship { animation: none; opacity: 1; }
+}
+@media (max-width: 760px) {
+  .masthead { grid-template-columns: 1fr; gap: 1rem; }
+  .masthead svg { order: -1; justify-self: start; max-width: 18rem; }
+}
+</style>""", unsafe_allow_html=True)
+
 with st.sidebar:
     st.header("Settings")
     st.caption("The defaults suit most survey vessels. Changes re-run the analysis.")
@@ -768,11 +808,37 @@ with st.sidebar:
     st.caption("Flags come from a flag column or, failing that, from the MMSI. China includes Hong "
                "Kong and Macau; the United States includes its territories.")
 
-st.title("Survey Pattern Detector")
-st.write("Finds lawnmower seafloor-survey patterns in AIS vessel tracks, draws them on one world map, "
-         "and lists the ports near each survey, highlighting those linked to rare-earth processing "
-         "and those in the vessel's own flag state. Pick ships from the library, set a timeframe, "
-         "or upload your own exports: each ship or file becomes its own map layer.")
+def _masthead_svg() -> str:
+    """A survey ship's lawnmower run, drawn once as the page loads."""
+    left, right, top, gap, n = 170, 440, 46, 17, 7
+    run = f"M{left} {top}"
+    for i in range(n):
+        y = top + i * gap
+        end = right if i % 2 == 0 else left
+        run += f" H{end}"
+        if i < n - 1:
+            run += f" A{gap / 2} {gap / 2} 0 0 {1 if i % 2 == 0 else 0} {end} {y + gap}"
+    last = top + (n - 1) * gap
+    soundings = [(40, 40, "1987"), (96, 92, "2140"), (30, 128, "2215"), (470, 24, "2302"),
+                 (300, 190, "2418"), (120, 186, "2266")]
+    return (
+        '<svg viewBox="0 0 480 200" role="img" aria-label="A survey vessel sailing a lawnmower pattern">'
+        '<path class="contour" d="M140 30 C220 4 380 8 462 32 C486 70 478 150 456 170 '
+        'C360 186 210 184 148 166 C126 120 124 64 140 30 Z"/>'
+        + "".join(f'<text class="sounding" x="{x}" y="{y}">{d}</text>' for x, y, d in soundings)
+        + f'<path class="transit" d="M8 196 C60 150 110 70 {left} {top}"/>'
+        f'<path class="run" d="{run}"/>'
+        f'<path class="ship" d="M{right + 4} {last - 5} L{right + 15} {last} L{right + 4} {last + 5} Z"/>'
+        "</svg>")
+
+
+st.markdown(
+    '<header class="masthead"><div><h1>Survey Pattern Detector</h1>'
+    "<p>Finds lawnmower seafloor-survey patterns in AIS vessel tracks and puts them on one world map. "
+    "For each survey it lists the nearest ports, marking those linked to rare-earth processing and "
+    "those in the vessel's own flag state. Pick ships from the library or upload your own exports: "
+    f"each ship or file gets its own map layer.</p></div>{_masthead_svg()}</header>",
+    unsafe_allow_html=True)
 
 # --- ship library: search, pick ships, pick a timeframe ---------------------------
 lib = load_library(library_files())
@@ -898,12 +964,12 @@ if len(ports_tbl) and "match_country" not in ports_tbl:
 linked_tbl = ports_tbl[ports_tbl["ree_link"] != ""] if len(ports_tbl) else ports_tbl
 home_tbl = ports_tbl[ports_tbl["match_country"] != ""] if len(ports_tbl) else ports_tbl
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5 = st.container(key="metrics").columns(5)
 c1.metric("Datasets", vessels["dataset"].nunique())
 c2.metric("Vessels", len(vessels))
 c3.metric("Survey areas", len(areas))
 c4.metric("Surveying now", int((vessels["survey_status"] == "Surveying now").sum()))
-c5.metric("Rare-earth linked ports nearby", linked_tbl["port"].nunique() if len(linked_tbl) else 0)
+c5.metric("Rare-earth ports nearby", linked_tbl["port"].nunique() if len(linked_tbl) else 0)
 lib_files = {safe_name(name) for name, *_ in lib_ids}
 for note in res["notes"]:
     if note.split(":")[0] in lib_files and "no vessel ID column" in note:
@@ -975,23 +1041,25 @@ if not len(shown):
 st.subheader("World map")
 page_map = map_html(res["geojson"], shown, focus)
 components.html(page_map, height=640)
-legend = [f"<span style='color:{c}'>●</span> {k}" for k, c in LINK_COLORS.items()]
-legend += [f"<span style='color:{PLAIN_PORT_COLOR}'>●</span> other port",
-           f"<span style='color:{FLAG_PORT_COLOR}'>◯</span> port in flag state / chosen country",
-           f"<span style='color:{PREDICTION_COLOR}'>╍╍</span> predicted next lines",
-           f"<span style='color:{SITE_STYLES['processing'][0]}'>◆</span> processing plant",
-           f"<span style='color:{SITE_STYLES['magnet'][0]}'>◆</span> magnet / metal plant",
-           f"<span style='color:{SITE_STYLES['mine'][0]}'>▲</span> mine / deposit",
-           f"<span style='color:{MINERAL_COLORS['nodules']}'>■</span> ISA nodule contract",
-           f"<span style='color:{MINERAL_COLORS['sulphides']}'>■</span> sulphide contract",
-           f"<span style='color:{MINERAL_COLORS['crusts']}'>■</span> crust contract",
-           f"<span style='color:{CHINA_OUTLINE}'>□</span> China-sponsored contract",
-           "<span style='color:#2e7d32'>■</span> protected area (APEI)"]
-st.markdown("<div style='font-size:0.85rem;line-height:1.8'>" + " &nbsp; ".join(legend) +
-            "<br>Layer switches: the layers button at the top right of the map (hover or tap to open); "
-            "basemaps: the button at the bottom left. Each "
-            "dataset has its own colour. Ship icons: red = surveying now, blue = survey found, "
-            "grey = no survey. Click anything for details.</div>", unsafe_allow_html=True)
+legend = [(c, "●", k) for k, c in LINK_COLORS.items()]
+legend += [(PLAIN_PORT_COLOR, "●", "Other port"),
+           (FLAG_PORT_COLOR, "◯", "Port in flag state or chosen country"),
+           (PREDICTION_COLOR, "╍", "Predicted next lines"),
+           (SITE_STYLES["processing"][0], "◆", "Processing plant"),
+           (SITE_STYLES["magnet"][0], "◆", "Magnet or metal plant"),
+           (SITE_STYLES["mine"][0], "▲", "Mine or deposit"),
+           (MINERAL_COLORS["nodules"], "■", "ISA nodule contract"),
+           (MINERAL_COLORS["sulphides"], "■", "Sulphide contract"),
+           (MINERAL_COLORS["crusts"], "■", "Crust contract"),
+           (CHINA_OUTLINE, "□", "China-sponsored contract"),
+           ("#2e7d32", "■", "Protected area (APEI)")]
+st.container(key="legend").markdown(
+    "<div class='legend-keys'>"
+    + "".join(f"<span><b style='color:{c}'>{mark}</b>{label}</span>" for c, mark, label in legend)
+    + "</div><div class='legend-help'>Turn layers on and off with the layers button at the top right "
+      "of the map; change the basemap at the bottom left. Each dataset has its own colour. Ship icons: "
+      "red is surveying now, blue is a survey found, grey is no survey. Click anything for details."
+      "</div>", unsafe_allow_html=True)
 
 # --- details -------------------------------------------------------------------
 PORT_VIEW = {"category": "List", "rank": "#", "port": "Port", "country": "Country", "harbor_size": "Size",
@@ -1098,7 +1166,7 @@ else:
         st.info("No lawnmower survey pattern found for this vessel, so no port search was made.")
     for _, a in v_areas.iterrows():
         live = str(a["status"]).startswith("IN")
-        st.markdown(f"#### Survey area {a['area_id']} " + (":orange[IN PROGRESS]" if live else ":green[completed]"))
+        st.markdown(f"#### Survey area {a['area_id']} " + (":primary-badge[In progress]" if live else ":green-badge[Completed]"))
         st.markdown(f"{a['n_lines']} lines in {a['n_blocks']} block(s), best confidence {a['best_confidence']}. "
                     f"Lines run {a['line_axis_compass']}, ~{a['median_spacing_km']} km apart; "
                     f"{a['total_line_km']} line-km over ~{a['area_km2']} km², centred at "
