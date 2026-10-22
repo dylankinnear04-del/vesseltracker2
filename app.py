@@ -41,8 +41,8 @@ import survey_pattern_detector as spd
 HERE = Path(__file__).resolve().parent
 LIBRARY = HERE / "library"          # vessels.csv catalog + tracks/ position files
 UPLOAD_TYPES = ["csv", "txt", "tsv", "xlsx", "xlsm"]
-TABLES = ["vessels", "nearby_ports", "survey_areas", "survey_blocks", "survey_lines",
-          "predictions", "positions_processed"]
+TABLES = ["vessels", "nearby_ports", "survey_hotspots", "survey_areas", "survey_blocks", "survey_lines",
+          "rejected_blocks", "predictions", "positions_processed"]
 
 SETTINGS = {
     "Cleaning": {
@@ -69,9 +69,29 @@ SETTINGS = {
         "min_overlap_frac": "Adjacent lines must cover at least this share of the same stretch.",
         "min_length_ratio": "Shorter line / longer line, for adjacent lines.",
         "max_connector_km": "Longest turn between the end of one line and the next.",
+        "max_turn_hours": "Longest time between one line and the next: legs days apart are repeat trips, not a survey.",
         "max_skip_lines": "Odd lines (cross-lines, turn pieces) tolerated inside a block.",
         "min_lines_per_block": "Fewest lines that make a survey block.",
         "area_join_km": "Blocks this close with the same axis form one survey area.",
+    },
+    "Is it a real survey?": {
+        "min_score": "Drop blocks scoring below this (0-1): they only loosely fit the pattern.",
+        "max_spacing_cv": "Lawnmower line spacing must be this regular (spread / mean).",
+        "min_new_track_frac": "Share of lines on new ground, not re-running an earlier line (shuttles, patrols).",
+        "min_progression": "Lawnmower: share of steps that advance the same way across the block.",
+        "min_interleaved_lines": "Interleaved / racetrack surveys (3D seismic) need at least this many lines...",
+        "min_coverage": "...filling this share of the block's width (1 km strips)...",
+        "min_width_km": "...which is at least this wide (km)...",
+        "interleaved_max_speed_kn": "...run at towed-seismic speed or slower (kn)...",
+        "interleaved_max_turn_hours": "...turning straight onto the next line (hours).",
+        "min_survey_speed_kn": "Slowest median speed on the lines that counts as surveying.",
+        "max_survey_speed_kn": "Fastest: ferries and patrols run faster than survey ships.",
+        "min_offshore_km": "Survey lines must lie at least this far from the coast (median).",
+        "shore_turn_km": "A line ending this close to the coast turns at the shore...",
+        "max_shore_turn_frac": "...and no more than this share of line ends may do that.",
+    },
+    "Survey hotspots": {
+        "hotspot_join_km": "Survey areas this close, by any ships, count as one hotspot.",
     },
     "Prediction": {
         "predict_lines": "How many upcoming lines to project.",
@@ -83,6 +103,7 @@ SETTINGS = {
 DATASET_COLORS = ["#2f6fdf", "#16a34a", "#8e44ad", "#0e9aa7", "#8d5a3b", "#d63384",
                   "#5c6f82", "#9aa20f"]
 PREDICTION_COLOR = "#ff2fb3"
+HOTSPOT_COLORS = {1: "#ffb300", 2: "#f4511e", 3: "#8e0038"}   # by ships surveying it (3 = 3 or more)
 LINK_COLORS = {"Known rare-earth cargo port": "#d62728",
                "Near rare-earth processing site": "#f28e2b",
                "Near rare-earth mine": "#c9a227"}
@@ -331,9 +352,10 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
 
 
 def _excel(tables: dict) -> bytes:
-    names = {"vessels": "Vessels", "nearby_ports": "Nearby Ports", "survey_areas": "Survey Areas",
-             "survey_blocks": "Survey Blocks", "survey_lines": "Survey Lines",
-             "predictions": "Predictions", "positions_processed": "Positions"}
+    names = {"vessels": "Vessels", "nearby_ports": "Nearby Ports", "survey_hotspots": "Survey Hotspots",
+             "survey_areas": "Survey Areas", "survey_blocks": "Survey Blocks", "survey_lines": "Survey Lines",
+             "rejected_blocks": "Rejected Patterns", "predictions": "Predictions",
+             "positions_processed": "Positions"}
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xl:
         for key, sheet in names.items():
@@ -524,6 +546,47 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None) -> foli
                 bounds.append([v["last_lat"], _wrap(v["last_lon"], c)])
 
         groups[f"Dataset: {ds}"] = [survey] + ([preds] if has_preds else []) + [tracks, boats]
+
+    # --- survey hotspots: seabed surveyed more than once, by one ship or several --
+    multi = folium.FeatureGroup("Surveyed by several ships")
+    repeat = folium.FeatureGroup("Surveyed again by the same ship", show=False)
+    for f in feats:
+        p = f["properties"]
+        if p["layer"] != "hotspot":
+            continue
+        ships = int(p["n_vessels"])
+        color = HOTSPOT_COLORS[min(ships, 3)]
+        ring = _unwrap(f["geometry"]["coordinates"][0], c)
+        together = p.get("surveyed_together") or ""
+        when = (f"{str(p.get('first_time'))[:10]} → {str(p.get('last_time'))[:10]}"
+                if p.get("first_time") else "")
+        folium.Polygon(ring, color=color, weight=4 if ships > 1 else 2, fill=True,
+                       fill_color=color, fill_opacity=0.22 if ships > 1 else 0.1,
+                       tooltip=(f"Survey hotspot {p['hotspot_id']} · {ships} ships"
+                                + (" · at the same time" if together else "")
+                                if ships > 1 else f"Survey hotspot {p['hotspot_id']} · surveyed "
+                                                  f"{p['n_survey_areas']} times by one ship"),
+                       popup=folium.Popup(_rows([
+                           ("Hotspot", f"<b>{p['hotspot_id']}</b>"),
+                           ("Ships", f"<b>{ships}</b>: " + html.escape(str(p["vessels"]))),
+                           ("Flags", p.get("flags")),
+                           ("Survey areas", p["n_survey_areas"]), ("Lines", p["n_lines"]),
+                           ("Line-km", f"{p['total_line_km']:,.0f}"),
+                           ("Area", f"{p['area_km2']:,.0f} km²"), ("Period", when),
+                           ("Most ships at once", p.get("max_vessels_at_once")),
+                           ("Surveying together", html.escape(together)),
+                           ("Surveying now", "yes" if p.get("surveying_now") else "")]),
+                           max_width=380)).add_to(multi if ships > 1 else repeat)
+        if ships > 1:   # count badge in the middle
+            folium.Marker([p["centroid_lat"], _wrap(p["centroid_lon"], c)],
+                          tooltip=f"Survey hotspot {p['hotspot_id']}: {ships} ships",
+                          icon=folium.DivIcon(
+                              html=(f"<div style='background:{color};color:#fff;border:2px solid #fff;"
+                                    "border-radius:50%;width:26px;height:26px;line-height:22px;"
+                                    "text-align:center;font:700 13px sans-serif;"
+                                    f"box-shadow:0 0 3px #0008'>{ships}</div>"),
+                              icon_size=(26, 26), icon_anchor=(13, 13))).add_to(multi)
+    groups["Survey hotspots"] = [multi, repeat]
 
     # --- ports near surveys and the routes to them ---------------------------
     linked_ports = folium.FeatureGroup("Rare-earth linked ports")
@@ -950,6 +1013,7 @@ with st.spinner("Detecting survey patterns and searching nearby ports..."):
 T = res["tables"]
 vessels, ports_tbl, areas, preds = (T["vessels"].copy(), T["nearby_ports"].copy(),
                                     T["survey_areas"], T["predictions"])
+hotspots = T["survey_hotspots"]
 for col in ("dataset", "vessel", "name", "mmsi", "imo", "callsign", "flag", "flag_source",
             "ship_type", "destination", "marinetraffic_url", "port_country", "port_country_basis"):
     vessels[col] = (vessels[col].fillna("").astype(str).str.replace(r"\.0$", "", regex=True)
@@ -964,12 +1028,14 @@ if len(ports_tbl) and "match_country" not in ports_tbl:
 linked_tbl = ports_tbl[ports_tbl["ree_link"] != ""] if len(ports_tbl) else ports_tbl
 home_tbl = ports_tbl[ports_tbl["match_country"] != ""] if len(ports_tbl) else ports_tbl
 
-c1, c2, c3, c4, c5 = st.container(key="metrics").columns(5)
+c1, c2, c3, c4, c5, c6 = st.container(key="metrics").columns(6)
 c1.metric("Datasets", vessels["dataset"].nunique())
 c2.metric("Vessels", len(vessels))
 c3.metric("Survey areas", len(areas))
-c4.metric("Surveying now", int((vessels["survey_status"] == "Surveying now").sum()))
-c5.metric("Rare-earth ports nearby", linked_tbl["port"].nunique() if len(linked_tbl) else 0)
+c4.metric("Multi-ship hotspots", int((hotspots["n_vessels"] > 1).sum()) if len(hotspots) else 0,
+          help="Places surveyed by more than one ship (see Survey hotspots below the map).")
+c5.metric("Surveying now", int((vessels["survey_status"] == "Surveying now").sum()))
+c6.metric("Rare-earth ports nearby", linked_tbl["port"].nunique() if len(linked_tbl) else 0)
 lib_files = {safe_name(name) for name, *_ in lib_ids}
 for note in res["notes"]:
     if note.split(":")[0] in lib_files and "no vessel ID column" in note:
@@ -1045,6 +1111,8 @@ legend = [(c, "●", k) for k, c in LINK_COLORS.items()]
 legend += [(PLAIN_PORT_COLOR, "●", "Other port"),
            (FLAG_PORT_COLOR, "◯", "Port in flag state or chosen country"),
            (PREDICTION_COLOR, "╍", "Predicted next lines"),
+           (HOTSPOT_COLORS[2], "⬢", "Hotspot: 2 ships"),
+           (HOTSPOT_COLORS[3], "⬢", "Hotspot: 3+ ships"),
            (SITE_STYLES["processing"][0], "◆", "Processing plant"),
            (SITE_STYLES["magnet"][0], "◆", "Magnet or metal plant"),
            (SITE_STYLES["mine"][0], "▲", "Mine or deposit"),
@@ -1122,6 +1190,30 @@ if focus is None:
                                 "track_km": st.column_config.NumberColumn("Track (km)", format="%.0f"),
                                 "marinetraffic_url": st.column_config.LinkColumn("MarineTraffic",
                                                                                  display_text="open")})
+    if len(hotspots):
+        st.subheader("Survey hotspots")
+        st.caption("Places surveyed more than once: survey areas by any ships that overlap or lie within "
+                   f"{settings['hotspot_join_km']:g} km of each other. Several ships in one place, "
+                   "especially at the same time, point to a coordinated survey campaign. Shown on the map "
+                   "under Survey hotspots; repeat visits by a single ship are listed here too.")
+        hs = hotspots.copy()
+        for col in ("surveyed_together", "flags", "first_time", "last_time"):
+            if col not in hs:
+                hs[col] = ""
+        hs["first_time"] = hs["first_time"].astype(str).str[:10].replace("nan", "")
+        hs["last_time"] = hs["last_time"].astype(str).str[:10].replace("nan", "")
+        st.dataframe(hs[["hotspot_id", "n_vessels", "vessels", "flags", "surveyed_together",
+                         "max_vessels_at_once", "n_survey_areas", "total_line_km", "area_km2",
+                         "first_time", "last_time", "centroid_lat", "centroid_lon"]].fillna(""),
+                     hide_index=True, width="stretch",
+                     column_config={"hotspot_id": "Hotspot", "n_vessels": "Ships", "vessels": "Ships surveying",
+                                    "flags": "Flags", "surveyed_together": "There at the same time",
+                                    "max_vessels_at_once": "Most at once", "n_survey_areas": "Survey areas",
+                                    "total_line_km": st.column_config.NumberColumn("Line-km", format="%.0f"),
+                                    "area_km2": st.column_config.NumberColumn("Area (km²)", format="%.0f"),
+                                    "first_time": "From", "last_time": "To",
+                                    "centroid_lat": "Lat", "centroid_lon": "Lon"})
+
     shown_keys = set(keys)
     if len(linked_tbl):   # only vessels passing the flag filter
         linked_tbl = linked_tbl[[k in shown_keys for k in zip(linked_tbl["dataset"], linked_tbl["vessel"])]]
@@ -1171,6 +1263,17 @@ else:
                     f"Lines run {a['line_axis_compass']}, ~{a['median_spacing_km']} km apart; "
                     f"{a['total_line_km']} line-km over ~{a['area_km2']} km², centred at "
                     f"{a['centroid_lat']}, {a['centroid_lon']}.")
+        hid = int(a["hotspot_id"]) if "hotspot_id" in a and pd.notna(a["hotspot_id"]) else -1
+        hot = hotspots[hotspots["hotspot_id"] == hid] if hid > 0 and len(hotspots) else hotspots.iloc[0:0]
+        if len(hot):
+            h = hot.iloc[0]
+            if h["n_vessels"] > 1:
+                together = h.get("surveyed_together")
+                st.warning(f"**Survey hotspot {hid}**: {int(h['n_vessels'])} ships have surveyed here: "
+                           f"{h['vessels']}."
+                           + (f" There at the same time: {together}." if not _blank(together) else ""))
+            else:
+                st.info(f"**Survey hotspot {hid}**: this ship surveyed here {int(h['n_survey_areas'])} times.")
         near = (ports_tbl[(ports_tbl["dataset"] == ds) & (ports_tbl["vessel"] == vs)
                           & (ports_tbl["area_id"] == a["area_id"])] if len(ports_tbl) else ports_tbl)
         if len(near):
@@ -1238,8 +1341,8 @@ st.caption("Ports: NGA World Port Index (public domain). Sea distances follow a 
            "before relying on them.")
 
 st.subheader("All results")
-tabs = st.tabs(["Vessels", "Nearby ports", "Survey areas", "Survey blocks", "Survey lines",
-                "Predictions", "Positions"])
+tabs = st.tabs(["Vessels", "Nearby ports", "Survey hotspots", "Survey areas", "Survey blocks", "Survey lines",
+                "Rejected patterns", "Predictions", "Positions"])
 for tab, key in zip(tabs, TABLES):
     with tab:
         if len(T[key]):

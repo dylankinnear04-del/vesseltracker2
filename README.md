@@ -6,9 +6,29 @@ underway at the last position, it projects where the next lines will fall. Each
 survey is matched to nearby ports, and ports linked to rare-earth processing,
 mining or rare-earth cargo are highlighted.
 
+Ships that only *look* like they are surveying (ferries, patrols, coastal
+shuttles going back and forth) are filtered out. A block of parallel lines
+counts as a survey only if it:
+
+- runs line after line, with no more than a few hours between one line and the next
+  (the same leg repeated days apart is a repeat trip);
+- keeps laying lines on new ground: a progressive lawnmower that advances steadily
+  across the area with even spacing, or an interleaved / racetrack survey (3D
+  seismic) whose lines fill the width of the area at towed-seismic speed;
+- stays offshore: the lines lie at least 5 km from the coast and do not keep
+  turning at the shoreline;
+- runs at survey speed (2-12 kn) and has at least 4 lines.
+
+Rejected blocks and the reasons are listed in `rejected_blocks.csv` (the
+"Rejected patterns" tab in the web app). Survey areas of any ships that overlap
+or lie within 25 km of each other form a **survey hotspot**; hotspots show on
+the map with the number of ships, and whether ships were there at the same time.
+
 - `survey_pattern_detector.py`: the detector (command line or imported)
 - `port_intel.py`: nearby ports, rare-earth links, flag from MMSI, AIS ship types
 - `reference_data/world_ports.csv`: about 3,800 ports from the NGA World Port Index (public domain)
+- `reference_data/coastline_ne10m.npz`: the Natural Earth 1:10m coastline (public
+  domain) as points every 2 km, for the distance-from-coast check
 - `reference_data/ree_sites.csv`: rare-earth processing plants, magnet plants, mines,
   cargo ports and seabed-mineral areas. Curated, with approximate locations; add or
   correct rows freely.
@@ -140,8 +160,9 @@ python survey_pattern_detector.py fleet_a.csv fleet_b.csv --out results
 ```
 
 Each file or folder given is a separate dataset. Results go to `results/`:
-`vessels.csv`, `nearby_ports.csv`, `survey_areas.csv`, `survey_blocks.csv`,
-`survey_lines.csv`, `predictions.csv`, `positions_processed.csv`,
+`vessels.csv`, `nearby_ports.csv`, `survey_hotspots.csv`, `survey_areas.csv`,
+`survey_blocks.csv`, `rejected_blocks.csv`, `survey_lines.csv`, `predictions.csv`,
+`positions_processed.csv`,
 `survey_results.geojson` (plus one GeoJSON per layer in `arcgis/`) and `maps/`.
 Every setting in `Config` is also a command-line flag, e.g. `--min-lines-per-block 4`.
 `--port-country China` matches every vessel to Chinese ports (`flag`, the default,

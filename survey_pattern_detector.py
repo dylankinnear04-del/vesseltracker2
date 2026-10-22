@@ -5,7 +5,10 @@ SURVEY PATTERN DETECTOR  (v3)
 
 Finds "lawnmower" seafloor-mapping patterns in vessel position data:
 runs of long, straight, parallel lines driven in alternating directions,
-evenly spaced, and joined by short turns. For survey blocks that are
+evenly spaced, and joined by short turns. Runs that only look like that -
+ferries, patrols and coastal shuttles going back and forth - are rejected:
+a survey runs line after line without long breaks, keeps laying lines on new
+ground, stays offshore and runs at survey speed. For survey blocks that are
 still in progress, it also projects where the next lines should fall.
 
 Works on
@@ -35,6 +38,10 @@ Outputs (default folder: ./survey_results)
     survey_blocks.csv        one row per detected survey block (with a score)
     survey_lines.csv         every straight line found and the block it belongs to
     survey_areas.csv         blocks of the same survey joined into areas
+    survey_hotspots.csv      places surveyed more than once, by one ship or several,
+                             and whether ships were there at the same time
+    rejected_blocks.csv      parallel back-and-forth runs that are not surveys, and why
+                             (too near the coast, days apart, same track over and over)
     predictions.csv          projected next lines for blocks still in progress
     vessels.csv              one row per vessel: identity, track summary, survey status
     nearby_ports.csv         nearest ports and rare-earth linked ports per survey area
@@ -90,16 +97,36 @@ class Config:
     min_points_per_line: int = 3
 
     # --- lawnmower pattern -----------------------------------------------
-    antiparallel_tol_deg: float = 20.0 # next line must run within this of opposite way
-    block_axis_tol_deg: float = 15.0   # every line must stay within this of block axis
+    antiparallel_tol_deg: float = 15.0 # next line must run within this of opposite way
+    block_axis_tol_deg: float = 12.0   # every line must stay within this of block axis
     min_spacing_km: float = 0.05
     max_spacing_km: float = 25.0       # widest plausible gap between adjacent lines
-    min_overlap_frac: float = 0.3      # adjacent lines must cover the same stretch
-    min_length_ratio: float = 0.25     # shorter/longer line length
+    min_overlap_frac: float = 0.5      # adjacent lines must cover the same stretch
+    min_length_ratio: float = 0.4      # shorter/longer line length
     max_connector_km: float = 40.0     # longest turn between the end of one line and the next
+    max_turn_hours: float = 4.0        # longest turn in time: a survey runs line after line;
+                                       # legs days apart are repeated transits, not a survey
     max_skip_lines: int = 2            # odd lines (turn pieces, cross-lines) tolerated inside a block
-    min_lines_per_block: int = 3
+    min_lines_per_block: int = 4
     area_join_km: float = 15.0         # blocks this close with the same axis form one survey area
+    # --- does the block look like a real survey? -----------------------------
+    min_score: float = 0.55            # drop blocks that only loosely fit (low confidence)
+    max_spacing_cv: float = 0.6        # line spacing must be regular
+    min_new_track_frac: float = 0.8    # share of lines on fresh ground, not re-running an
+                                       # earlier line (shuttling back and forth on one route)
+    min_progression: float = 0.75      # lawnmower: share of steps that advance the same way
+    min_interleaved_lines: int = 8     # interleaved / racetrack (3D seismic runs lines out of
+    min_coverage: float = 0.6          # order): this many lines, filling this share of the
+    min_width_km: float = 3.0          # block's width, which is at least this wide,
+    interleaved_max_speed_kn: float = 6.0   # at towed-seismic speed, turning straight onto
+    interleaved_max_turn_hours: float = 6.0 # the next line (patrols loiter between legs)
+    min_survey_speed_kn: float = 2.0   # median speed on the lines; surveys run slow and steady,
+    max_survey_speed_kn: float = 12.0  # ferries and patrols run faster
+    min_offshore_km: float = 5.0       # survey lines must lie this far from the coast (median)
+    shore_turn_km: float = 2.0         # a line ending this close to the coast turns at the shore
+    max_shore_turn_frac: float = 0.25  # ...and a survey does not keep doing that
+    # --- survey hotspots (all vessels together) -------------------------------
+    hotspot_join_km: float = 25.0      # survey areas this close, by any vessel, form one hotspot
     # --- prediction -------------------------------------------------------
     predict_lines: int = 3             # how many upcoming lines to project
     min_progression_for_prediction: float = 0.6
@@ -111,6 +138,8 @@ class Config:
 
 EARTH_RADIUS_KM = 6371.0088
 KM_PER_NM = 1.852
+NEW_TRACK_KM = 0.3       # lines closer than this across the block run the same track
+COVERAGE_STRIP_KM = 1.0  # strip width for coverage_frac
 
 
 # ============================================================
@@ -392,6 +421,39 @@ def xy_heading(dx, dy):
     return (np.degrees(np.arctan2(dx, dy)) + 360) % 360
 
 
+# ============================================================
+# DISTANCE FROM THE COAST
+# ============================================================
+# reference_data/coastline_ne10m.npz: the Natural Earth 1:10m coastline (public
+# domain) as points every <= 2 km, in thousandths of a degree. Distances are
+# good to about 1 km, plenty to tell open water from a harbour or a ferry route.
+
+COASTLINE = Path(__file__).resolve().parent / "reference_data" / "coastline_ne10m.npz"
+_coast_tree = None
+
+
+def _unit_xyz(lat, lon):
+    lat, lon = np.radians(np.asarray(lat, float)), np.radians(np.asarray(lon, float))
+    return np.column_stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+
+
+def coast_distance_km(lat, lon):
+    """Distance from each point to the nearest coastline, km (NaN without the coastline file)."""
+    global _coast_tree
+    lat = np.atleast_1d(np.asarray(lat, float))
+    if _coast_tree is None:
+        try:
+            from scipy.spatial import cKDTree
+            pts = np.load(COASTLINE)["lonlat_e3"] / 1000.0
+            _coast_tree = cKDTree(_unit_xyz(pts[:, 1], pts[:, 0]))
+        except (ImportError, OSError, KeyError):
+            _coast_tree = False
+    if _coast_tree is False:
+        return np.full(lat.shape, np.nan)
+    chord, _ = _coast_tree.query(_unit_xyz(lat, lon))
+    return 2 * EARTH_RADIUS_KM * np.arcsin(np.clip(chord / 2, 0, 1))
+
+
 def rdp_vertices(x, y, eps):
     """Ramer-Douglas-Peucker: indices of points that define straight pieces."""
     n = len(x)
@@ -632,13 +694,23 @@ def compare_lines(A: dict, B: dict):
     }
 
 
-def lines_pair(A, B, cfg: Config, check_connector=True):
+def turn_hours(A: dict, B: dict) -> float:
+    """Hours from the end of line A to the start of line B (NaN without timestamps)."""
+    if pd.isna(A["end_time"]) or pd.isna(B["start_time"]):
+        return np.nan
+    return (B["start_time"] - A["end_time"]).total_seconds() / 3600
+
+
+def lines_pair(A, B, cfg: Config, check_connector=True, lines_between=0):
     c = compare_lines(A, B)
+    hours = turn_hours(A, B)
     ok = (c["antiparallel_dev"] <= cfg.antiparallel_tol_deg
           and cfg.min_spacing_km <= abs(c["offset_km"]) <= cfg.max_spacing_km
           and c["overlap_frac"] >= cfg.min_overlap_frac
           and c["length_ratio"] >= cfg.min_length_ratio
-          and (not check_connector or c["connector_km"] <= cfg.max_connector_km))
+          and (not check_connector or c["connector_km"] <= cfg.max_connector_km)
+          # skipped lines in between (a cross-line, a turn piece) take their own time
+          and not hours > cfg.max_turn_hours + 1.5 * lines_between * cfg.max_turn_hours)
     return ok, c
 
 
@@ -666,7 +738,8 @@ def find_blocks(lines: list, cfg: Config):
         jumped = False
         if len(cur) >= 2:
             for j in range(k + 1, min(k + 1 + cfg.max_skip_lines, len(lines))):
-                if (lines_pair(lines[cur[-1]], lines[j], cfg, check_connector=False)[0]
+                if (lines_pair(lines[cur[-1]], lines[j], cfg, check_connector=False,
+                               lines_between=j - k)[0]
                         and axis_ok(cur, j)):
                     skipped.update(range(k, j))
                     cur.append(j)
@@ -755,7 +828,7 @@ def trim_block_ends(block: list, lines: list, p: pd.DataFrame, cfg: Config, has_
             and lines[k]["n_points"] >= cfg.min_points_per_line]
 
 
-def summarize_block(vessel, block_id, idx, lines, cfg: Config, has_time: bool):
+def summarize_block(vessel, block_id, idx, lines, p: pd.DataFrame, cfg: Config, has_time: bool):
     L = [lines[i] for i in idx]
     lat0 = float(np.mean([l[k] for l in L for k in ("start_lat", "end_lat")]))
     lon0 = float(np.mean([l[k] for l in L for k in ("start_lon", "end_lon")]))
@@ -786,6 +859,31 @@ def summarize_block(vessel, block_id, idx, lines, cfg: Config, has_time: bool):
     ratio = np.array([c["length_ratio"] for c in pair])
     spacing_cv = float(spacing.std() / spacing.mean()) if spacing.mean() > 0 else 1.0
 
+    # fresh ground: where each line sits across the block, averaged over all its
+    # fixes (steadier than the two end points); a line within NEW_TRACK_KM of an
+    # earlier one re-runs it. 3D seismic runs its sail lines out of order but each
+    # one on new ground; a shuttle or patrol keeps coming back to the same tracks.
+    lane = []
+    for l in L:
+        fx, fy = to_local_xy(p["lat"].to_numpy()[l["i0"]:l["i1"] + 1],
+                             p["lon"].to_numpy()[l["i0"]:l["i1"] + 1], lat0, lon0)
+        lane.append(float(np.mean(fx * n[0] + fy * n[1])))
+    lane = np.array(lane)
+    new_track = [k == 0 or np.abs(lane[:k] - lane[k]).min() > NEW_TRACK_KM for k in range(len(lane))]
+    sweep = float(np.ptp(lane) / max(float(np.median(spacing)), 1e-6))
+    # coverage: how evenly the lines fill the width of the block, in 1 km strips
+    # (hourly positions cannot place a line closer than that). Dense sail lines
+    # fill every strip; a shuttle on one or two routes leaves most of them empty.
+    strips = np.floor((lane - lane.min()) / COVERAGE_STRIP_KM)
+    coverage = len(np.unique(strips)) / min(len(lane), int(strips.max()) + 1)
+    turns = [h for h in (turn_hours(a, b) for a, b in zip(L[:-1], L[1:])) if np.isfinite(h)]
+
+    # where the lines lie relative to the coast
+    on_lines = np.concatenate([np.arange(l["i0"], l["i1"] + 1) for l in L])
+    offshore = coast_distance_km(p["lat"].to_numpy()[on_lines], p["lon"].to_numpy()[on_lines])
+    end_coast = coast_distance_km([l[k] for l in L for k in ("start_lat", "end_lat")],
+                                  [l[k] for l in L for k in ("start_lon", "end_lon")])
+
     score = (0.25 * min(1.0, (len(L) - 1) / 5)
              + 0.20 * max(0.0, 1 - anti_dev.mean() / cfg.antiparallel_tol_deg)
              + 0.20 * max(0.0, 1 - spacing_cv)
@@ -811,12 +909,19 @@ def summarize_block(vessel, block_id, idx, lines, cfg: Config, has_time: bool):
         "mean_line_km": round(float(np.mean([l["length_km"] for l in L])), 2),
         "total_line_km": round(float(np.sum([l["length_km"] for l in L])), 1),
         "area_km2": round(polygon_area(hull_xy), 1),
-        "pattern": "progressive" if progression >= 0.8 else "interleaved / racetrack",
+        "pattern": "progressive" if progression >= cfg.min_progression else "interleaved / racetrack",
         "progression_frac": round(progression, 2),
         "advancing_toward_deg": round(advance_bearing, 1),
         "advancing_toward": compass(advance_bearing),
         "mean_antiparallel_dev_deg": round(float(anti_dev.mean()), 1),
         "mean_overlap_frac": round(float(overlap.mean()), 2),
+        "new_track_frac": round(float(np.mean(new_track)), 2),
+        "sweep_spacings": round(sweep, 1),
+        "width_km": round(float(np.ptp(lane)), 2),
+        "coverage_frac": round(coverage, 2),
+        "max_turn_hours": round(float(max(turns)), 1) if turns else np.nan,
+        "offshore_km": round(float(np.median(offshore)), 1) if np.isfinite(offshore).any() else np.nan,
+        "shore_turn_frac": round(float((end_coast <= cfg.shore_turn_km).mean()), 2),
         "survey_speed_kn": round(float(np.median(speeds)), 1) if speeds else np.nan,
         "centroid_lat": round(lat0, 5),
         "centroid_lon": round(lon0, 5),
@@ -835,6 +940,41 @@ def summarize_block(vessel, block_id, idx, lines, cfg: Config, has_time: bool):
         "median_line_km": float(np.median([l["length_km"] for l in L])),
     }
     return summary, geometry
+
+
+def survey_doubts(summary: dict, cfg: Config) -> list:
+    """
+    Why a block that fits the lawnmower geometry is still not a believable survey
+    (empty = it is one). Back-and-forth running that is not surveying - ferries,
+    patrols, coastal shuttles, a ship going to and from the same work site - can
+    line up parallel legs too, but it runs them days apart, re-runs the same
+    track, hugs the coast or runs at passage speed.
+    """
+    s, why = summary, []
+    if s["n_lines"] < cfg.min_lines_per_block:
+        why.append(f"only {s['n_lines']} lines")
+    if s["score"] < cfg.min_score:
+        why.append("loose fit")
+    progressive = s["progression_frac"] >= cfg.min_progression
+    interleaved = (s["n_lines"] >= cfg.min_interleaved_lines
+                   and s["coverage_frac"] >= cfg.min_coverage
+                   and s["width_km"] >= cfg.min_width_km
+                   and not s["survey_speed_kn"] > cfg.interleaved_max_speed_kn
+                   and not s["max_turn_hours"] > cfg.interleaved_max_turn_hours)
+    fresh = s["new_track_frac"] >= cfg.min_new_track_frac
+    if not ((progressive and fresh) or interleaved):
+        why.append("re-runs the same track" if not fresh and s["coverage_frac"] < cfg.min_coverage
+                   else "does not advance across the area")
+    if progressive and s["spacing_cv"] > cfg.max_spacing_cv:
+        why.append("irregular spacing")      # interleaved steps alternate long/short anyway
+    speed = s["survey_speed_kn"]
+    if np.isfinite(speed) and not cfg.min_survey_speed_kn <= speed <= cfg.max_survey_speed_kn:
+        why.append(f"{speed} kn is not survey speed")
+    if np.isfinite(s["offshore_km"]) and s["offshore_km"] < cfg.min_offshore_km:
+        why.append("runs along the coast")
+    if s["shore_turn_frac"] > cfg.max_shore_turn_frac:
+        why.append("turns at the shore")
+    return why
 
 
 # ============================================================
@@ -937,6 +1077,98 @@ def group_survey_areas(vessel, blocks, geoms, cfg: Config, has_time: bool):
             area["end_time"] = max(b["end_time"] for b in B)
         areas.append(area)
     return areas, hulls
+
+
+# ============================================================
+# STEP 3c - SURVEY HOTSPOTS (ALL VESSELS TOGETHER)
+# ============================================================
+
+def find_hotspots(results, cfg: Config):
+    """
+    Survey areas of any vessels that overlap or lie within hotspot_join_km of each
+    other = one hotspot: a stretch of seabed surveyed more than once. Reports how
+    many ships surveyed it and whether any of them were there at the same time.
+    Every area gets a hotspot_id (-1 if it stands alone).
+    """
+    items = []
+    for r in results:
+        info = r.get("info", {})
+        ship = info.get("mmsi") or f"{r['dataset']}/{r['vessel']}"
+        label = info.get("name") or str(r["vessel"])
+        if info.get("mmsi") and info.get("name"):
+            label += f" ({info['mmsi']})"
+        for a in r["areas"]:
+            a["hotspot_id"] = -1
+            hull = r["area_hulls"][a["area_id"]]
+            items.append({"area": a, "hull": hull, "ship": ship, "label": label,
+                          "flag": info.get("flag", "")})
+    n = len(items)
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    cen = np.array([[it["area"]["centroid_lat"], it["area"]["centroid_lon"]] for it in items]).reshape(-1, 2)
+    reach = [max(haversine_km(it["area"]["centroid_lat"], it["area"]["centroid_lon"], la, lo)
+                 for lo, la in it["hull"]) if it["hull"] else 0.0 for it in items]
+    for i in range(n):
+        d = haversine_km(cen[i, 0], cen[i, 1], cen[i + 1:, 0], cen[i + 1:, 1])
+        for j in np.flatnonzero(d <= np.array(reach[i + 1:]) + reach[i] + cfg.hotspot_join_km) + i + 1:
+            if find(i) != find(j) and hull_distance_km(items[i]["hull"], items[j]["hull"]) <= cfg.hotspot_join_km:
+                parent[find(j)] = find(i)
+
+    groups = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(items[i])
+    groups = [g for g in groups.values() if len(g) >= 2]
+    groups.sort(key=lambda g: (-len({it["ship"] for it in g}), -len(g)))
+
+    hotspots, hulls = [], {}
+    for hid, g in enumerate(groups, 1):
+        for it in g:
+            it["area"]["hotspot_id"] = hid
+        pts = [p for it in g for p in it["hull"]]
+        lat0 = float(np.mean([p[1] for p in pts]))
+        lon0 = float(np.mean([p[0] for p in pts]))
+        hull_xy = convex_hull(list(zip(*to_local_xy([p[1] for p in pts], [p[0] for p in pts], lat0, lon0))))
+        hlat, hlon = from_local_xy([p[0] for p in hull_xy], [p[1] for p in hull_xy], lat0, lon0)
+        hulls[hid] = list(zip(hlon, hlat))
+
+        ships = {}
+        for it in g:
+            ships.setdefault(it["ship"], it)
+        row = {
+            "hotspot_id": hid,
+            "n_vessels": len(ships),
+            "vessels": "; ".join(sorted(it["label"] for it in ships.values())),
+            "flags": ", ".join(sorted({it["flag"] for it in ships.values() if it["flag"]})),
+            "n_survey_areas": len(g),
+            "n_lines": int(sum(it["area"]["n_lines"] for it in g)),
+            "total_line_km": round(float(sum(it["area"]["total_line_km"] for it in g)), 1),
+            "area_km2": round(polygon_area(hull_xy), 1),
+            "centroid_lat": round(lat0, 5),
+            "centroid_lon": round(lon0, 5),
+            "surveying_now": any(it["area"]["status"].startswith("IN") for it in g),
+        }
+        # ships in the hotspot at the same time: overlapping survey windows
+        spans = [(it["area"]["start_time"], it["area"]["end_time"], it["ship"], it["label"])
+                 for it in g if pd.notna(it["area"].get("start_time", pd.NaT))]
+        if spans:
+            row["first_time"] = min(s[0] for s in spans)
+            row["last_time"] = max(s[1] for s in spans)
+            together, most = set(), 1
+            for s0, e0, ship0, lab0 in spans:
+                most = max(most, len({ship for s, e, ship, _ in spans if s <= s0 <= e}))
+                for s, e, ship, lab in spans:
+                    if ship != ship0 and s <= e0 and e >= s0:
+                        together |= {lab0, lab}
+            row["max_vessels_at_once"] = most
+            row["surveyed_together"] = "; ".join(sorted(together))
+        hotspots.append(row)
+    return hotspots, hulls
 
 
 def compass(deg):
@@ -1058,7 +1290,7 @@ def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
     v["block_id"] = -1
 
     result = {"vessel": vessel, "order": order_note, "has_time": has_time,
-              "positions": v, "lines": [], "blocks": [], "predictions": [],
+              "positions": v, "lines": [], "blocks": [], "rejected": [], "predictions": [],
               "areas": [], "area_hulls": {},
               "geometry": {}, "track": list(zip(kept["lon"], kept["lat"]))}
     v["area_id"] = -1
@@ -1092,8 +1324,18 @@ def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
     for l in lines:
         v.loc[p.loc[l["i0"]:l["i1"], "vid"], "line_id"] = l["line_id"]
 
-    for bid, idx in enumerate(blocks, 1):
-        summary, geom = summarize_block(vessel, bid, idx, lines, cfg, has_time)
+    accepted = []
+    for idx in blocks:
+        summary, geom = summarize_block(vessel, len(accepted) + 1, idx, lines, p, cfg, has_time)
+        doubts = survey_doubts(summary, cfg)
+        if doubts:
+            for i in idx:
+                lines[i]["role"] = "rejected pattern: " + ", ".join(doubts)
+            result["rejected"].append({**summary, "block_id": -1, "rejected_because": ", ".join(doubts)})
+        else:
+            accepted.append((idx, summary, geom))
+
+    for bid, (idx, summary, geom) in enumerate(accepted, 1):
         for i in idx:
             lines[i]["block_id"] = bid
             lines[i]["role"] = "survey line"
@@ -1131,7 +1373,7 @@ def process_vessel(args):
     dataset, vessel, v, cfg = args
     result = detect_surveys(vessel, v, cfg)
     result["dataset"] = dataset
-    for key in ("lines", "blocks", "areas", "predictions"):
+    for key in ("lines", "blocks", "rejected", "areas", "predictions"):
         result[key] = [{"dataset": dataset, **row} for row in result[key]]
     result["info"] = info = vessel_info(result)
     info["port_country"], info["port_country_basis"] = port_match_country(info, cfg)
@@ -1272,8 +1514,9 @@ def run(sources, cfg: Config, out_dir: Path, workers: int = 1, make_maps: bool =
     else:
         results = [process_vessel(j) for j in jobs]
 
+    hotspots = find_hotspots(results, cfg)
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_outputs(results, out_dir, make_maps)
+    write_outputs(results, out_dir, make_maps, hotspots)
     return results, notes, len(data)
 
 
@@ -1287,7 +1530,7 @@ LINE_COLUMNS = ["dataset", "vessel", "line_id", "area_id", "block_id", "role", "
                 "start_row_in_file", "end_row_in_file", "chunk"]
 
 
-def write_outputs(results, out_dir: Path, make_maps: bool):
+def write_outputs(results, out_dir: Path, make_maps: bool, hotspots=([], {})):
     positions = pd.concat([r["positions"] for r in results], ignore_index=True)
     positions.drop(columns=["time"] if positions["time"].isna().all() else [], inplace=True)
     positions.insert(0, "dataset", positions.pop("dataset"))
@@ -1311,13 +1554,17 @@ def write_outputs(results, out_dir: Path, make_maps: bool):
         blocks = blocks.dropna(axis=1, how="all")
     blocks.to_csv(out_dir / "survey_blocks.csv", index=False)
 
+    rejected = pd.DataFrame([b for r in results for b in r["rejected"]])
+    rejected.drop(columns=["block_id"], errors="ignore").to_csv(out_dir / "rejected_blocks.csv", index=False)
+
     areas = pd.DataFrame([a for r in results for a in r["areas"]])
     areas.to_csv(out_dir / "survey_areas.csv", index=False)
+    pd.DataFrame(hotspots[0]).to_csv(out_dir / "survey_hotspots.csv", index=False)
 
     preds = pd.DataFrame([p for r in results for p in r["predictions"]])
     preds.to_csv(out_dir / "predictions.csv", index=False)
 
-    write_geojson(results, out_dir / "survey_results.geojson")
+    write_geojson(results, out_dir / "survey_results.geojson", hotspots)
     if make_maps:
         write_maps(results, out_dir / "maps")
 
@@ -1348,8 +1595,15 @@ def simplified_track(track, tolerance_km: float = 0.2):
     return [[float(lon[i]), float(lat[i])] for i in rdp_vertices(x, y, tolerance_km)]
 
 
-def write_geojson(results, path: Path):
+def write_geojson(results, path: Path, hotspots=([], {})):
     feats = []
+    for h in hotspots[0]:
+        ring = hotspots[1][h["hotspot_id"]]
+        if len(ring) >= 3:
+            feats.append({"type": "Feature",
+                          "properties": {"layer": "hotspot", **_clean_props(h)},
+                          "geometry": {"type": "Polygon",
+                                       "coordinates": [[list(map(float, p)) for p in ring + ring[:1]]]}})
     for r in results:
         if len(r["track"]) > 1:
             feats.append({"type": "Feature",
@@ -1414,7 +1668,7 @@ def write_geojson(results, path: Path):
 
 
 # GeoJSON layer -> per-layer file name in survey_results/arcgis/
-ARCGIS_LAYERS = {"track": "vessel_tracks", "survey_area": "survey_areas",
+ARCGIS_LAYERS = {"track": "vessel_tracks", "survey_area": "survey_areas", "hotspot": "survey_hotspots",
                  "survey_block": "survey_blocks", "line": "survey_lines",
                  "predicted_line": "predicted_lines", "port_route": "port_routes",
                  "nearby_port": "nearby_ports", "ree_site": "ree_sites"}
