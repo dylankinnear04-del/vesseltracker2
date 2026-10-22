@@ -1,0 +1,56 @@
+name,MMSI,flag,flag translated,GFW vessel type,GFW gear type,vesselId,dataset
+Unknown vessel,503178000,AUS,Australia,Seismic vessel,Seismic vessel,58336d142-21d2-6db1-c518-8e672dd67ba5,public-global-vessel-identity:v4.0
+Unknown vessel,419683000,IND,India,Seismic vessel,Seismic vessel,34d504111-15dd-59d0-eb04-83e5a1ca9434,public-global-vessel-identity:v4.0
+Unknown vessel,432833000,JPN,Japan,Seismic vessel,Seismic vessel,925323aa5-5a2f-ff45-8944-d425ae1a06b7,public-global-vessel-identity:v4.0
+Akvamarin,273393530,RUS,Russia,Other,Other,7a6904253-35dd-b273-05d4-3c73d03ec592,public-global-vessel-identity:v4.0
+Anuanua Moana,518998507,COK,Cook Islands,Seismic vessel,Seismic vessel,9f667d904-4fee-c581-2926-c78e14f68b13,public-global-vessel-identity:v4.0
+Atalante,227222000,FRA,France,Seismic vessel,Seismic vessel,db00c7f44-4bb5-9ad8-36c9-1be3234b770b,public-global-vessel-identity:v4.0
+Australian Warship,503178000,AUS,Australia,Seismic vessel,Seismic vessel,015173cc4-4ffd-75a3-b5d0-029bfcfaa990,public-global-vessel-identity:v4.0
+Chikyu,432522000,JPN,Japan,Other,Other,10c55eed1-1a70-5c79-04eb-09ad1746ba5c,public-global-vessel-identity:v4.0
+Chikyu,432522000,JPN,Japan,Other,Other,1a0cd619d-dd9f-3f08-f734-9e13bc1c36e6,public-global-vessel-identity:v4.0
+Coco,219030190,DNK,Denmark,Other,Other,9459c2d59-90dd-69f4-2d13-9d2b2fd56e8b,public-global-vessel-identity:v4.0
+Constructor 1,538009366,MHL,Marshall Islands,Other,Other,22d0056df-fdb1-fa00-35f4-40d168e95ecf,public-global-vessel-identity:v4.0
+Cotes De La Manche,227091000,FRA,France,Other,Other,8b9c22b25-597f-8180-8620-7cbba8b1604b,public-global-vessel-identity:v4.0
+Da Yang Hao,413212230,CHN,China,Seismic vessel,Seismic vessel,3d6b950d9-9aa1-87db-c224-7214af6842df,public-global-vessel-identity:v4.0
+Da Yang Hao,413212230,CHN,China,Seismic vessel,Seismic vessel,cdfc55ba3-3f06-ab8b-76db-1e26fb6f0342,public-global-vessel-identity:v4.0
+Da Yang Yi Hao,412923000,CHN,China,Seismic vessel,Seismic vessel,bdd25872f-fc19-54fa-c136-466d007f525b,public-global-vessel-identity:v4.0
+Gelendzhik,273434310,RUS,Russia,Seismic vessel,Seismic vessel,7a45bc0f1-1514-d9fa-f501-6c68d3ae7448,public-global-vessel-identity:v4.0
+Haiyang Dizhi Liuhao,412360000,CHN,China,Seismic vessel,Seismic vessel,0f551b0b0-023c-964c-1ca2-b918893f12fb,public-global-vessel-identity:v4.0
+Hakurei,432833000,JPN,Japan,Seismic vessel,Seismic vessel,90c3417b9-9fe8-06de-ae66-b61bbd7108ea,public-global-vessel-identity:v4.0
+Hidden Gem,215700000,MLT,Malta,Other,Other,e978db706-68f0-6b6c-8bef-78ea509e313a,public-global-vessel-identity:v4.0
+Hmas Melville,503178000,AUS,Australia,Seismic vessel,Seismic vessel,27be4ac12-2d90-80b4-40c1-0be837442256,public-global-vessel-identity:v4.0
+Isabu,440393000,KOR,Republic of Korea,Seismic vessel,Seismic vessel,d5026199e-e44c-dbdd-65a2-9b4b64d5387d,public-global-vessel-identity:v4.0
+Island Pride,311000215,BHS,Bahamas,"Na, Other","Na, Other",49fe96fc5-54a0-7dcc-8af2-3db951736302,public-global-vessel-identity:v4.0
+Island Pride,257406000,NOR,Norway,Seismic vessel,Seismic vessel,b5cead187-79be-e8b9-da23-a4bec5c1c326,public-global-vessel-identity:v4.0
+Kaimei,431273000,JPN,Japan,Seismic vessel,Seismic vessel,3ee011fe9-9509-ee57-5dff-2db88d96dfa1,public-global-vessel-identity:v4.0
+Kaimikai O Kanaloa,303165000,USA,United States of America,Other,Other,b3f313c9f-fd56-89b9-792b-7f28fe24ad5e,public-global-vessel-identity:v4.0
+Ke Xue,412330910,CHN,China,Seismic vessel,Seismic vessel,c659be185-57af-39ee-66dc-e79ebbb5eb50,public-global-vessel-identity:v4.0
+Kilo Moana,369565000,USA,United States of America,Seismic vessel,Seismic vessel,6b38f9411-1901-2fa5-1818-c47ec1c63405,public-global-vessel-identity:v4.0
+Maersk Launcher,220580000,DNK,Denmark,Other,Other,13faca3af-f8c6-36b4-f442-dcf8c9bd964b,public-global-vessel-identity:v4.0
+Maria S. Merian,211753000,DEU,Germany,Seismic vessel,Seismic vessel,f5ddd097d-debc-b183-4484-6728e1ba27cc,public-global-vessel-identity:v4.0
+Marion Dufresne,227235000,FRA,France,Seismic vessel,Seismic vessel,dce60a080-05f3-cb4e-666d-15f7d15b8f25,public-global-vessel-identity:v4.0
+Melville,503178000,AUS,Australia,Seismic vessel,Seismic vessel,063accca0-0ff8-84a9-f2fd-b347569accb9,public-global-vessel-identity:v4.0
+Normand Energy,258728000,NOR,Norway,Other,Other,7d56fd45f-f25d-19ed-1796-e4c4ff3ae60e,public-global-vessel-identity:v4.0
+Ocean Rig Olympia,538004077,MHL,Marshall Islands,Other,Other,1b05a3b9f-f229-424b-effb-f56dc5098289,public-global-vessel-identity:v4.0
+Orient Constructor,416007369,TWN,Chinese Taipei,Other,Other,f7f789abc-c195-3c1b-3013-305b25a404b9,public-global-vessel-identity:v4.0
+Pacific Constructor,563100200,SGP,Singapore,Seismic vessel,Seismic vessel,7e5e5c835-5948-5212-1714-56960fe5c3e5,public-global-vessel-identity:v4.0
+Rrs James Cook,235010700,GBR,United Kingdom,Seismic vessel,Seismic vessel,2c6815c00-092b-b460-6961-127a8733aaf5,public-global-vessel-identity:v4.0
+Sagar Nidhi,419683000,IND,India,Seismic vessel,Seismic vessel,b1431620d-dfb8-619d-3ec2-5283bff242f6,public-global-vessel-identity:v4.0
+Seabed Constructor,257224000,NOR,Norway,Other,Other,f9ce50d33-3fe4-4e42-389d-12993dce6b36,public-global-vessel-identity:v4.0
+Shen Hai Yi Hao,413212240,CHN,China,Seismic vessel,Seismic vessel,3940be456-644a-97ed-b339-eb9bb00c8ca0,public-global-vessel-identity:v4.0
+Sonne,211627240,DEU,Germany,Seismic vessel,Seismic vessel,d1a787164-46d3-2d2b-3e7f-b6f8cb56a17a,public-global-vessel-identity:v4.0
+Tamhae 3,440169000,KOR,Republic of Korea,Other,Other,ddd7205c5-5d4c-d3b3-002c-d4f606b03a7c,public-global-vessel-identity:v4.0
+Thalassa,227297000,FRA,France,Other,Other,9d45db21f-fc2b-f8db-9d31-40ed863e044d,public-global-vessel-identity:v4.0
+Thomas G Thompson,366345000,USA,United States of America,Seismic vessel,Seismic vessel,8b09fb503-33a7-0a73-6b3b-55d4c0e96856,public-global-vessel-identity:v4.0
+Victoria I,341425000,KNA,Saint Kitts and Nevis,Cargo,Cargo,af8ca0970-0133-2e30-4d53-faa609f8eece,public-global-vessel-identity:v4.0
+Vitoria 10000 Ns30,538003934,MHL,Marshall Islands,Other,Other,e217cd0a1-1d5a-480e-5636-19dea0c0eda9,public-global-vessel-identity:v4.0
+Vos Satisfaction,244626000,NLD,Netherlands,"Na, Other","Na, Other",e57e80002-2995-686e-7d96-d390e90489e0,public-global-vessel-identity:v4.0
+Warship Melville,503178000,AUS,Australia,Seismic vessel,Seismic vessel,9ffaeb100-02e8-c8e0-a962-213fd7d07915,public-global-vessel-identity:v4.0
+Xiang Yang Hong 01,413330890,CHN,China,Seismic vessel,Seismic vessel,37004c5a3-3ce9-29aa-8e46-0f96db81534b,public-global-vessel-identity:v4.0
+Xiang Yang Hong 03,413701510,CHN,China,Seismic vessel,Seismic vessel,1efb6093c-c7ba-88e4-b331-494a96fb7715,public-global-vessel-identity:v4.0
+Xiang Yang Hong 06,413320530,CHN,China,Other,Other,c40e59374-49c9-f7bb-4a16-650fd954d572,public-global-vessel-identity:v4.0
+Xiang Yang Hong 09,412917000,CHN,China,Other,Other,9b5da57fc-cdea-1a8e-20b5-d0f8d04881a7,public-global-vessel-identity:v4.0
+Xiang Yang Hong10,413452850,CHN,China,Seismic vessel,Seismic vessel,83670c9e7-7d46-ee31-35d0-24673e941fcc,public-global-vessel-identity:v4.0
+Yantar',273546520,RUS,Russia,"Na, Seismic vessel","Na, Seismic vessel",4d91f479a-aacc-9c55-c47d-871ed8968f15,public-global-vessel-identity:v4.0
+Yokosuka,431460000,JPN,Japan,Seismic vessel,Seismic vessel,a07a9b110-0659-0cb9-cd95-7f38b9f125ae,public-global-vessel-identity:v4.0
+Yuzhmorgeologiya,273422600,RUS,Russia,Other,Other,71e30b568-8e4c-4a28-8d86-bccb51c8ea3a,public-global-vessel-identity:v4.0
