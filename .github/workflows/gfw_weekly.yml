@@ -17,6 +17,10 @@ on:
   schedule:
     - cron: "0 11 * * 1"    # Mondays 11:00 UTC = 7:00 US Eastern in summer, 6:00 in winter
   workflow_dispatch:         # "Run workflow" button in the Actions tab
+    inputs:
+      months:
+        description: "Months of history to pull (2 for a normal update, 12 for a newly added ship)"
+        default: "2"
 
 permissions:
   contents: write            # lets the job commit the new tracks
@@ -28,7 +32,7 @@ concurrency:
 env:
   WATCHLIST: library/watchlist_deep_sea_mining.csv
   VESSEL_GROUP: mining_vessels-user-public
-  MONTHS: "2"                # re-fetching an overlap is safe: tracks are merged, not duplicated
+  MONTHS: ${{ inputs.months || '2' }}   # re-fetching an overlap is safe: tracks are merged, not duplicated
 
 jobs:
   fetch:
