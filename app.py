@@ -580,7 +580,7 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
         for f in layer("line"):
             if _match(f, ds) and (f["properties"].get("block_id") or -1) > 0:
                 _polyline(f["geometry"]["coordinates"], survey, c, color=color, weight=3, opacity=0.95)
-        has_preds = False
+        has_preds, flagged = False, set()
         for f in layer("predicted_line"):
             if _match(f, ds):
                 has_preds = True
@@ -588,6 +588,18 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
                 _polyline(f["geometry"]["coordinates"], preds, c, color=PREDICTION_COLOR, weight=4,
                           dash_array="8 6",
                           tooltip=f"{p['vessel']}: {p['kind']} (+{p['hours_after_last_fix_start']} h)")
+                if p["vessel"] not in flagged:   # the lines are small at world scale: a label finds them
+                    flagged.add(p["vessel"])
+                    lon0, lat0 = f["geometry"]["coordinates"][0]
+                    folium.Marker([lat0, _wrap(lon0, c)],
+                                  tooltip=f"{p['vessel']} is surveying now: pink dashed lines are its "
+                                          "predicted next survey lines",
+                                  icon=folium.DivIcon(
+                                      html=(f"<div style='background:{PREDICTION_COLOR};color:#fff;"
+                                            "border:2px solid #fff;border-radius:10px;padding:1px 7px;"
+                                            "font:700 11px sans-serif;white-space:nowrap;"
+                                            "box-shadow:0 0 3px #0008'>next lines ▸</div>"),
+                                      icon_size=(84, 20), icon_anchor=(0, 10))).add_to(preds)
 
         for _, v in vessels[vessels["dataset"] == ds].iterrows():
             if pd.isna(v["last_lat"]):
@@ -648,11 +660,18 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
     # ports, like their routes, only once zoomed to a ship or an area (layers menu otherwise)
     linked_ports = folium.FeatureGroup("Rare-earth linked ports", show=zoomed)
     plain_ports = folium.FeatureGroup("Other nearby ports", show=zoomed)
-    flag_ports = folium.FeatureGroup("Ports in flag state / chosen country", show=zoomed)
+    # the ship's own country's ports are the point of the port search: the nearest one and the
+    # nearest rare-earth linked one per survey always show; the longer lists when zoomed
+    flag_ports = folium.FeatureGroup("Nearest ports in the ship's own country")
+    flag_more = folium.FeatureGroup("Other ports in the ship's own country", show=zoomed)
     # routes only when zoomed to a ship or an area: on the world view they hide the surveys
     linked_routes = folium.FeatureGroup("Routes to rare-earth linked ports (any country)",
                                         show=zoomed and not matched)
-    flag_routes = folium.FeatureGroup("Routes to flag-state / chosen-country ports", show=zoomed)
+    flag_routes = folium.FeatureGroup("Routes to the nearest ports in the ship's own country")
+    flag_routes_more = folium.FeatureGroup("Routes to other ports in the ship's own country", show=zoomed)
+    headline = {(str(p["dataset"]), str(p["vessel"]), p["area_id"], p["port"])
+                for p in (f["properties"] for f in layer("nearby_port"))
+                if p.get("category") in FLAG_CATEGORIES and p.get("rank") == 1}
     plain_routes = folium.FeatureGroup("Routes to other nearby ports", show=False)
     by_port = {}
     for f in layer("nearby_port"):
@@ -678,14 +697,24 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
         ).add_to(linked_ports if link else plain_ports)
         home = sorted({r["match_country"] for r in rows if r["category"] in FLAG_CATEGORIES})
         if home:   # a ring marks ports of the matched country
-            folium.CircleMarker([lat, _wrap(lon, c)], radius=12, color=FLAG_PORT_COLOR, weight=3, fill=False,
-                                tooltip=f"{name}: port in {', '.join(home)}").add_to(flag_ports)
+            top = any((str(r["dataset"]), str(r["vessel"]), r["area_id"], r["port"]) in headline for r in rows)
+            folium.CircleMarker([lat, _wrap(lon, c)], radius=12 if top else 10, color=FLAG_PORT_COLOR,
+                                weight=3, fill=top, fill_color=FLAG_PORT_COLOR, fill_opacity=0.35,
+                                tooltip=f"{name}: port in {', '.join(home)}"
+                                        + (f" · {link}" if link else ""),
+                                popup=folium.Popup(_rows([
+                                    ("Port", f"<b>{html.escape(name)}</b>"), ("Country", country),
+                                    ("Rare-earth link", f"<b>{link}</b>" if link else ""),
+                                    ("Distance from surveys", surveys)]), max_width=380),
+                                ).add_to(flag_ports if top else flag_more)
     for f in layer("port_route"):
         p = f["properties"]
         linked = not _blank(p.get("ree_link"))
         home = p.get("category") in FLAG_CATEGORIES
+        top = (str(p["dataset"]), str(p["vessel"]), p["area_id"], p["port"]) in headline
         _polyline(f["geometry"]["coordinates"], c=c, group=
-                  flag_routes if home else linked_routes if linked else plain_routes,
+                  (flag_routes if top else flag_routes_more) if home else
+                  linked_routes if linked else plain_routes,
                   color=FLAG_PORT_COLOR if home else
                   LINK_COLORS["Known rare-earth cargo port"] if linked else PLAIN_PORT_COLOR,
                   weight=3 if home else 1.5, opacity=0.9 if home else 0.6, dash_array="4 6",
@@ -744,8 +773,8 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
                                     " {radius: 4, color: '#3b5b7d', fillOpacity: 0.8})"
                                     ".bindTooltip(row[2]); }")).add_to(world_ports)
 
-    groups["Ports near surveys"] = [linked_ports, plain_ports, flag_ports, linked_routes,
-                                    flag_routes, plain_routes]
+    groups["Ports near surveys"] = [flag_ports, flag_routes, flag_more, flag_routes_more, linked_ports,
+                                    plain_ports, linked_routes, plain_routes]
     groups["Seabed mining areas"] = list(seabed.values()) + [national]
     groups["Rare-earth sites"] = list(site_groups.values())
     groups["Reference"] = [world_ports]
@@ -797,7 +826,7 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
     return m
 
 
-MAP_STYLE = 4   # bump when build_map changes: the cache below only sees its own code, not build_map's
+MAP_STYLE = 5   # bump when build_map changes: the cache below only sees its own code, not build_map's
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
@@ -1309,6 +1338,12 @@ with tab_map:
         listed = (area_list[[k in shown_keys for k in zip(area_list["dataset"], area_list["vessel"])]]
                   if len(area_list) else area_list)
         st.markdown(f"**Survey areas ({len(listed)})**")
+        n_live = int((vessels["survey_status"] == "Surveying now").sum())
+        st.caption(f"**{n_live} ship{'s are' if n_live != 1 else ' is'} surveying now:** look for the pink "
+                   "*next lines* label on the map; the pink dashed lines are where the next survey lines "
+                   "should fall." if n_live else
+                   "No ship is mid-survey at the end of these dates, so there are no predicted next lines "
+                   "(pink). They appear for ships still running survey lines at their last position.")
         if not len(listed):
             st.caption("No survey patterns in these ships' tracks for the chosen dates. Try a longer "
                        "timeframe in the menu on the left: one week rarely holds a whole survey.")
@@ -1320,7 +1355,7 @@ with tab_map:
                         if "start_time" in a and not _blank(a["start_time"]) else "")
                 hid = int(a["hotspot_id"]) if "hotspot_id" in a and pd.notna(a["hotspot_id"]) else -1
                 hot = hotspots[hotspots["hotspot_id"] == hid] if hid > 0 and len(hotspots) else hotspots.iloc[0:0]
-                badges = (":red-badge[Surveying now] " if a["live"] else "") + (
+                badges = (":red-badge[Surveying now · next lines in pink] " if a["live"] else "") + (
                     f":orange-badge[{int(hot.iloc[0]['n_vessels'])} ships here] "
                     if len(hot) and hot.iloc[0]["n_vessels"] > 1 else "")
                 on = focus_area is not None and tuple(focus_area) == key
@@ -1336,14 +1371,17 @@ with tab_map:
               (HOTSPOT_COLORS[2], "⬢", "Hotspot: 2 ships"), (HOTSPOT_COLORS[3], "⬢", "Hotspot: 3+ ships"),
               (PREDICTION_COLOR, "╍", "Predicted next lines")]
     legend += [(c, "●", k) for k, c in LINK_COLORS.items()]
-    legend += [(PLAIN_PORT_COLOR, "●", "Other port"), (FLAG_PORT_COLOR, "◯", "Port in the ship's own country")]
+    legend += [(FLAG_PORT_COLOR, "◉", "Nearest port in the ship's own country (gold, with its route)"),
+               (PLAIN_PORT_COLOR, "●", "Other port")]
     st.container(key="legend").markdown(
         "<div class='legend-keys'>"
         + "".join(f"<span><b style='color:{c};text-shadow:0 0 1px #000'>{mark}</b>{label}</span>"
                   for c, mark, label in legend)
         + "</div><div class='legend-help'>Thin coloured lines are the ships' tracks and small dots their "
-          "last positions (red: still surveying). Ports and the routes to them "
-          "appear when you zoom to a ship or an area. More layers (rare-earth sites, seabed mining "
+          "last positions (red: still surveying). Gold rings are each survey's nearest port in the "
+          "ship's own country (and its nearest rare-earth linked port there), with the sea route; "
+          "the other ports and routes appear when you zoom to a ship or an area. More layers "
+          "(rare-earth sites, seabed mining "
           "areas, all world ports) are under the stack icon at the top right of the map; change the "
           "basemap at the bottom left. Click anything for details.</div>", unsafe_allow_html=True)
 
