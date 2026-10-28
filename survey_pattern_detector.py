@@ -286,9 +286,12 @@ def standardize(raw: pd.DataFrame, source_name: str):
 
     # the first ID column that has any values: an export can carry an empty MMSI column, and
     # every row would then share the ID "nan"
-    vessel_col = next((lookup[a] for a in COLUMN_ALIASES["vessel"] if a in lookup
-                       and raw[lookup[a]].astype(str).str.strip().replace({"nan": "", "None": ""}).ne("").any()),
-                      None)
+    # (missing values are tested directly: pandas 3 keeps them missing through astype(str))
+    def filled(col):
+        v = raw[col]
+        return bool((v.notna() & ~v.astype(str).str.strip().isin(["", "nan", "None", "<NA>"])).any())
+
+    vessel_col = next((lookup[a] for a in COLUMN_ALIASES["vessel"] if a in lookup and filled(lookup[a])), None)
     out["vessel"] = raw[vessel_col].astype(str).str.strip() if vessel_col else source_name
     for key, aliases in INFO_ALIASES.items():
         col = next((lookup[a] for a in aliases if a in lookup), None)
