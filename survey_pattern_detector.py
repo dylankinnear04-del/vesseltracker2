@@ -284,7 +284,11 @@ def standardize(raw: pd.DataFrame, source_name: str):
         col = pick(key)
         out[name] = pd.to_numeric(raw[col], errors="coerce") if col else np.nan
 
-    vessel_col = pick("vessel")
+    # the first ID column that has any values: an export can carry an empty MMSI column, and
+    # every row would then share the ID "nan"
+    vessel_col = next((lookup[a] for a in COLUMN_ALIASES["vessel"] if a in lookup
+                       and raw[lookup[a]].astype(str).str.strip().replace({"nan": "", "None": ""}).ne("").any()),
+                      None)
     out["vessel"] = raw[vessel_col].astype(str).str.strip() if vessel_col else source_name
     for key, aliases in INFO_ALIASES.items():
         col = next((lookup[a] for a in aliases if a in lookup), None)

@@ -447,7 +447,7 @@ def _km(x) -> str:
 
 def vessel_label(row) -> str:
     name, vessel = row.get("name") or "", str(row["vessel"])
-    if not name or name == vessel or safe_name(name) == vessel:   # library ships: id is the name
+    if not name or name.lower() == vessel.lower() or safe_name(name) == vessel:   # id is the name
         return name or vessel
     return f"{name} ({vessel})"
 
