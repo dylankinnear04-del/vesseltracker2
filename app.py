@@ -452,6 +452,13 @@ def vessel_label(row) -> str:
     return f"{name} ({vessel})"
 
 
+def dataset_note(row) -> str:
+    """' · dataset' for labels, unless the dataset is just the ship itself (library ships, one-ship files)."""
+    ds = str(row["dataset"])
+    same = {str(row["vessel"]).lower(), str(row.get("name") or "").lower()}
+    return "" if ds.lower() in same or safe_name(ds).lower() in same else f" · {ds}"
+
+
 def _vessel_popup(v) -> str:
     link = (f"<a href='{html.escape(v['marinetraffic_url'])}' target='_blank'>MarineTraffic</a>"
             if v["marinetraffic_url"] else "")
@@ -1315,7 +1322,7 @@ with tab_map:
     order = shown.assign(rank=shown["survey_status"].map({"Surveying now": 0, "Survey found": 1}).fillna(2))
     choices = {ALL_SHIPS: None}
     for _, v in order.sort_values(["rank", "dataset", "vessel"]).iterrows():
-        where = ("" if v["vessel"] in (v["dataset"], safe_name(v["dataset"])) else f" · {v['dataset']}")
+        where = dataset_note(v)
         choices[f"{vessel_label(v)}{where} · {v['survey_status']}"] = (v["dataset"], v["vessel"])
     if st.session_state.get("zoom_ship") not in choices:
         st.session_state["zoom_ship"] = ALL_SHIPS
@@ -1445,7 +1452,7 @@ with tab_ships:
                     key = (v["dataset"], v["vessel"])
                     old = given.get(key, {"mmsi": "", "flag": "", "name": ""})
                     i1, i2, i3, i4 = st.columns([3, 2, 2, 2])
-                    where = "" if v["vessel"] in (v["dataset"], safe_name(v["dataset"])) else f" · {v['dataset']}"
+                    where = dataset_note(v)
                     i1.markdown(f"**{vessel_label(v)}**{where}  \n{v['survey_status']}"
                                 + (f" · now **{v['flag']}**" if v["flag"] else ""))
                     tag = f"{v['dataset']}|{v['vessel']}"
