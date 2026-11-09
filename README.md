@@ -159,6 +159,139 @@ worldwide, so survey lines closer than ~1-2 km apart blur together. GFW's
 "survey" class also includes some coast guard and oil-industry vessels.
 Data: Powered by Global Fishing Watch (https://globalfishingwatch.org), CC BY-NC 4.0.
 
+## Models: try your own detector
+
+Each file in `models/` is one detection model. The app's sidebar has a **Model**
+dropdown to switch between them, and the **Compare models** tab runs
+several on the same data side by side. When it knows which vessels really are
+surveying, it also scores each model: precision (how many flagged vessels were
+real surveys) and recall (how many real surveys were found): upload a CSV with
+columns `vessel, is_survey`. `benchmarks/` holds a synthetic test set with its
+labels for quick checks from the command line (see below).
+
+- `models/baseline.py`: the original detector, unchanged. Everything is compared to it.
+- `models/example_strict.py`: the baseline with stricter rules, a minimal example.
+- `models/sweep.py`: a second, different detector built for hourly Global Fishing
+  Watch tracks (see **The Sweep model** below).
+- `models/_template.py`: copy this to start yours. It has three options: change
+  the settings (A), write your own pattern recogniser and keep the rest of the
+  pipeline (B), or build a completely different approach (C).
+
+**Adding your model**
+
+1. Make a branch: `git checkout -b <yourname>-model`
+2. Copy `models/_template.py` to `models/<yourname>.py` and fill it in.
+3. Test it: `streamlit run app.py`, or
+   `python survey_pattern_detector.py benchmarks/synthetic_10_ships.csv --model <yourname>`
+4. Commit only your own file, push your branch and open a pull request.
+
+Everyone edits only their own file in `models/`, so merges don't conflict. A
+model that crashes on import shows a warning in the sidebar instead of breaking
+the app.
+
+### The Sweep model (`models/sweep.py`)
+
+The baseline finds long straight lines first and then chains neighbours. On
+hourly, ~1 km-snapped GFW tracks a survey line can be just two or three fixes,
+and patrols that go back and forth over one spot also chain into "blocks".
+Sweep works the other way round:
+
+1. **Heading signature.** Over a sliding 24 h window it measures whether the
+   ship moves along one axis (axial strength) but not net one way (directional
+   strength). High axial + low directional = back and forth = candidate survey.
+2. **Legs.** Each run of fixes heading the same way along the axis is a leg; no
+   straightness test, so curved lines count and a leg may be one hourly step.
+3. **Coverage regularity.** Legs only form a block if they lie side by side,
+   evenly spaced (at least 1 km, GFW's grid), overlap, never cross, keep their
+   gap from end to end (no V shapes or fans), number 5+ and last 12 h+.
+
+Note: the baseline has since gained its own patrol / ferry filter (rejected_blocks.csv),
+which closes much of this gap; on the 94-ship library of Nov 2026 the baseline flags 31
+ships and Sweep 36. Sweep keeps that filter except its spacing test (it runs its own).
+
+On the 62 library ships (Oct 2026), compared with the baseline:
+
+| | Baseline | Sweep |
+|---|---|---|
+| Survey blocks found | 626 | 218 |
+| Coast guard ships flagged (6 in library) | 6, 124 blocks | 6, 30 blocks |
+| Research / survey ships flagged (46) | 42 | 17 |
+| Synthetic benchmark (4 surveyors, 6 others) | 4 / 4, no false alarms | 4 / 4, no false alarms |
+| Arctic MarineTraffic export (dense, 1 fix/min) | 8 blocks | 3 blocks |
+
+Sweep is much stricter: it drops most patrol zig-zags and short noise, and
+keeps the long systematic surveys (e.g. Xiang Yang Hong 01, 412360000), but on
+dense exports like the Arctic file the baseline finds more of the real lines.
+Neither model can see surveys run by an AUV or towed sled while the ship
+barely moves. With no labelled real data yet, these are counts, not accuracy:
+labelling a few dozen real blocks is the next step to say which is better.
+
+### Demo datasets: where the two models differ
+
+`benchmarks/` has three small synthetic datasets (fake ships, MMSI 999xxxxxx),
+each with a labels file, built by `benchmarks/make_demo_datasets.py`. Upload a
+dataset under **Your own files**, then in **Compare models** upload its
+`_labels.csv` and press **Run comparison**. `benchmarks/demo_comparison.png`
+shows both models on the key ships.
+
+| Dataset | Ship | Truth | Line-Chain (baseline) | Sweep |
+|---|---|---|---|---|
+| 1 hourly patrols | Deep Mapper: 12-line survey | survey | found | found |
+| | Patrol One: criss-cross patrol | not | **false alarm** | correct |
+| | Patrol Two: zig-zag patrol | not | **false alarm** | correct |
+| 2 dense, short | Site Surveyor: 4 lines, 5 hours | survey | found | **missed** |
+| | Nodule Surveyor: 9 lines, 1.5 days | survey | found | found |
+| | Cargo Runner: transit | not | correct | correct |
+| 3 curved, gaps | Seamount Mapper: 9 curved lines, 15% of reports missing | survey | **missed** | found |
+| | Shuttle: same line back and forth | not | correct | correct |
+| | Station Keeper: near-stationary work | not a lawnmower | correct | correct |
+
+## What is the ship likely surveying for?
+
+Each survey area gets a **likely target** from where it lies and who the ship
+is (`resource_context.py`, data in `reference_data/seabed_resources.csv`):
+polymetallic nodules (CCZ, Peru Basin, Cook Islands, Central Indian Ocean),
+rare-earth mud (Minamitorishima), cobalt crusts (Prime Crust Zone, Rio Grande
+Rise), seafloor sulphides (mid-ocean ridges, Okinawa Trough, Manus Basin),
+phosphorite, placers (diamonds, tin, iron sand), gas hydrates, oil and gas
+basins, and scientific / shelf-claim mapping (Central Arctic, Southern Ocean).
+Coast guard ships are labelled as patrols, and oil and gas ships as oil and
+gas. The vessel panel shows it under each survey area, the Survey areas table
+has the columns, and the map's layer menu has **What surveys here look for**.
+The regions are rough boxes for indication only; edit the CSV to refine them.
+Sources: ISA exploration areas; Hein et al. 2013, Ore Geology Reviews 51;
+Kato et al. 2011, Nature Geoscience (REE mud); national seabed-mining reviews.
+
+## Your own copy on GitHub, and merging later
+
+A separate repository under your own account changes nothing in the team's:
+
+1. On GitHub: **New repository**, e.g. `vesseltracker-quinn`, with no README
+   (it must start empty).
+2. Push this folder's branch to it as its `main`:
+   `git remote add mine https://github.com/<you>/vesseltracker-quinn.git` then
+   `git push mine quinn-models:main`.
+3. At <https://share.streamlit.io> **Create app** from that repository, main file
+   `app.py`: your own link, with every model in the dropdown.
+4. Later, to merge: the branch already contains the team's history, so it can
+   be merged into the team repository (or opened as a pull request) whenever
+   the team agrees. To pick up the team's newer work meanwhile:
+   `git fetch origin && git merge origin/main`.
+
+Uploading files through the GitHub website works too, but it replaces whole
+files; git merges line by line, so two people's edits to `app.py` combine.
+
+**Keys.** Never commit `gfw_token.txt` (it is in `.gitignore`). On Streamlit
+Cloud put secrets under the app's **Settings -> Secrets**, not in the repo.
+Global Fishing Watch data is CC BY-NC (non-commercial): a commercial product
+needs GFW's permission or another data source.
+
+**Plugging in live data.** The app reads the ship library fresh on every run,
+so any updater (GFW, a live AIS feed, a simulator) only needs to write
+position files into `library/tracks/` and rows into `library/vessels.csv`
+(`track_file` = the file name), as `gfw_fetch.py` does. Models never read files
+themselves, so every model works on new data unchanged.
+
 ## Command line
 
 ```bash
