@@ -23,6 +23,7 @@ import io
 import json
 import re
 import tempfile
+import time
 import uuid
 import warnings
 import zipfile
@@ -38,7 +39,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 from folium.plugins import FastMarkerCluster, GroupedLayerControl
 
+import models
 import port_intel
+import resource_context
 import survey_pattern_detector as spd
 
 HERE = Path(__file__).resolve().parent
@@ -323,6 +326,7 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
     whose files carry no identity (library catalog entries, the identity form).
     """
     cfg = spd.Config(**settings)
+    started = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp:
         src, out = Path(tmp) / "input", Path(tmp) / "results"
         src.mkdir()
@@ -357,7 +361,8 @@ def analyse(groups: tuple, settings: dict, identities: tuple = ()) -> dict:
     del results
     gc.collect()                           # hand the detector's working memory back before the page is built
     return {"notes": notes, "n_rows": n_rows, "tables": tables, "maps": maps,
-            "geojson": geojson, "zip": zip_bytes, "id": uuid.uuid4().hex}
+            "geojson": geojson, "zip": zip_bytes, "id": uuid.uuid4().hex,
+            "seconds": time.perf_counter() - started}
 
 
 def on_request(res: dict, what: str, make):
@@ -772,6 +777,25 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
                                                          ("Note", p["note"]), ("Outline", p["source"])]),
                                                   max_width=360)).add_to(national)
 
+    resources = {cat: folium.FeatureGroup(f"Likely target: {cat.lower()}", show=False)
+                 for cat in resource_context.CATEGORY_ORDER}
+    for _, r in resource_context.regions().iterrows():
+        col = resource_context.CATEGORY_COLORS.get(r["category"], "#555")
+        # edges every few degrees, so a box spanning the 180° line or the whole globe stays whole
+        lo0, lo1 = ((c - 180, c + 180) if r["max_lon"] - r["min_lon"] >= 359     # whole-globe band
+                    else (r["min_lon"], r["max_lon"]))
+        lons = np.linspace(lo0, lo1, max(2, int((lo1 - lo0) // 10) + 2))
+        ring = ([[lo, r["min_lat"]] for lo in lons] + [[lo, r["max_lat"]] for lo in lons[::-1]])
+        folium.Polygon(_unwrap(ring, c), color=col, weight=1.5, fill=True,
+                       fill_opacity=0.08, tooltip=f"{r['name']}: {r['category']}",
+                       popup=folium.Popup(_rows([("Region", f"<b>{html.escape(r['name'])}</b>"),
+                                                 ("Resource", r["category"]), ("Commodities", r["commodities"]),
+                                                 ("Depth", r["depth"]), ("Note", r["notes"]),
+                                                 ("Source", r["source"]),
+                                                 ("Outline", "approximate box, for indication only")]),
+                                          max_width=360)).add_to(resources.setdefault(
+            r["category"], folium.FeatureGroup(f"Likely target: {r['category'].lower()}", show=False)))
+
     world_ports = folium.FeatureGroup("All world ports (3,800)", show=False)
     ports = port_intel.load_ports()
     if len(ports):
@@ -784,6 +808,7 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
                                     plain_ports, linked_routes, plain_routes]
     groups["Seabed mining areas"] = list(seabed.values()) + [national]
     groups["Rare-earth sites"] = list(site_groups.values())
+    groups["What surveys here look for (approx.)"] = list(resources.values())
     groups["Reference"] = [world_ports]
     for members in groups.values():
         for g in members:
@@ -791,6 +816,14 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
     highlight.add_to(m)                    # added last: drawn above everything else
     GroupedLayerControl({"Survey areas": [highlight], **groups},
                         exclusive_groups=False, collapsed=True).add_to(m)   # opens on hover / tap
+    # the layer list is taller than the map: give it its own scroll bar, and keep the
+    # mouse wheel / touch drag inside it from zooming or panning the map
+    m.get_root().header.add_child(folium.Element(
+        "<style>.leaflet-control-layers-expanded{max-height:min(520px,calc(100vh - 120px));"
+        "overflow-y:auto;overscroll-behavior:contain;}</style>"))
+    m.get_root().script.add_child(folium.Element(
+        "setTimeout(function () { document.querySelectorAll('.leaflet-control-layers').forEach("
+        "function (el) { L.DomEvent.disableScrollPropagation(el); L.DomEvent.disableClickPropagation(el); }); }, 0);"))
     LiveSeabedAreas(c, seabed).add_to(m)
     folium.LayerControl(position="bottomleft", collapsed=True).add_to(m)   # basemaps
 
@@ -833,7 +866,7 @@ def build_map(geojson: dict, vessels: pd.DataFrame, focus: tuple | None, labels:
     return m
 
 
-MAP_STYLE = 5   # bump when build_map changes: the cache below only sees its own code, not build_map's
+MAP_STYLE = 6   # bump when build_map changes: the cache below only sees its own code, not build_map's
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
@@ -1174,6 +1207,15 @@ with st.sidebar:
         if uploads and len(uploads) > 1:
             separate = not st.toggle("Combine all files into one dataset", value=False,
                                      help="Use this when the files are parts of one export, e.g. one file per day.")
+    st.header("Detection model")
+    MODELS = models.available()
+    model_key = st.selectbox("Detection model", list(MODELS), format_func=models.label, key="model",
+                             label_visibility="collapsed",
+                             help="Each file in the models/ folder is one model. Copy "
+                                  "models/_template.py to add yours.")
+    st.caption(getattr(MODELS[model_key], "DESCRIPTION", ""))
+    for bad, why in models.errors().items():
+        st.warning(f"models/{bad}.py could not be loaded: {why}")
     with st.expander("Advanced settings"):
         st.caption("You don't need to change these: the defaults suit most survey ships.")
         defaults = asdict(spd.Config())
@@ -1193,7 +1235,7 @@ with st.sidebar:
                 else:
                     settings[name] = float(st.number_input(label, value=float(default), min_value=0.0,
                                                            format="%g", help=help_text, key=f"cfg_{name}"))
-        settings = {**defaults, **settings}   # anything not listed above keeps its default
+        settings = {**defaults, **settings, "model": model_key}   # anything not listed keeps its default
         st.markdown("**Port matching**")
         port_mode = st.radio("Also list the nearest ports of", ["Each vessel's flag state",
                                                                  "One country for every vessel", "Nobody"],
@@ -1310,8 +1352,8 @@ def show_everything():
     st.session_state["zoom_ship"] = ALL_SHIPS
 
 
-tab_map, tab_ships, tab_hot, tab_ports, tab_data, tab_help = st.tabs(
-    ["🗺️ Map", "🚢 Ships", "🔁 Hotspots", "⚓ Ports", "📄 Data & downloads", "❓ Help"])
+tab_map, tab_ships, tab_hot, tab_ports, tab_models, tab_data, tab_help = st.tabs(
+    ["🗺️ Map", "🚢 Ships", "🔁 Hotspots", "⚓ Ports", "⚖️ Compare models", "📄 Data & downloads", "❓ Help"])
 
 # ============================================================
 # MAP TAB
@@ -1538,6 +1580,11 @@ with tab_ships:
                             f"{a['best_confidence']}. Lines run {a['line_axis_compass']}, ~{a['median_spacing_km']} km "
                             f"apart; {a['total_line_km']} line-km over ~{a['area_km2']} km², centred at "
                             f"{a['centroid_lat']}, {a['centroid_lon']}.")
+                if not _blank(a.get("likely_target")):
+                    alt = "" if _blank(a.get("target_alternatives")) else f" Also possible: {a['target_alternatives']}."
+                    what = "" if _blank(a.get("target_commodities")) else f" ({a['target_commodities']})"
+                    st.markdown(f"**Likely surveying for:** {a['likely_target']}{what}. "
+                                f"_Basis: {a['target_basis']}._{alt}")
                 hid = int(a["hotspot_id"]) if "hotspot_id" in a and pd.notna(a["hotspot_id"]) else -1
                 hot = hotspots[hotspots["hotspot_id"] == hid] if hid > 0 and len(hotspots) else hotspots.iloc[0:0]
                 if len(hot):
@@ -1647,6 +1694,57 @@ with tab_ports:
         port_table(linked_shown.sort_values("sea_km"), extra=("vessel", "area_id"))
     else:
         st.info("No rare-earth linked ports near the surveys found (or no surveys found).")
+
+# ============================================================
+# COMPARE MODELS TAB
+# ============================================================
+with tab_models:
+    st.write("Runs several models on the ships chosen, side by side. Upload a labels file "
+             "(which vessels really are surveying) to also score each model.")
+    picked = st.multiselect("Models to compare", list(MODELS), default=list(MODELS),
+                            format_func=models.label, key="compare_models")
+    labels_upload = st.file_uploader("Labels (optional): CSV with columns vessel, is_survey (1 or 0)",
+                                     type=["csv"], key="labels_upload")
+    if st.button("Run comparison", disabled=not picked):
+        truth = None
+        if labels_upload is not None:
+            lab = pd.read_csv(labels_upload, dtype={"vessel": str})
+            truth = dict(zip(lab["vessel"].astype(str), lab["is_survey"].astype(int)))
+        ident = tuple(lib_ids) + tuple(sorted((k[0], k[1], v["mmsi"], v["flag"], v["name"], "entered", "")
+                                              for k, v in given.items()))
+        summary, per_vessel = [], {}
+        for key in picked:
+            with st.spinner(f"Running {models.label(key)}..."):
+                r = analyse(tuple(groups), {**settings, "model": key}, ident)
+            V, B = r["tables"]["vessels"], r["tables"]["survey_blocks"]
+            found = dict(zip(V["vessel"].astype(str), V["survey_status"] != "No survey pattern"))
+            per_vessel[models.label(key)] = found
+            row = {"model": models.label(key), "vessels flagged": sum(found.values()),
+                   "survey areas": len(r["tables"]["survey_areas"]), "survey blocks": len(B),
+                   "mean block score": round(float(B["score"].mean()), 3) if len(B) else None,
+                   "predictions": len(r["tables"]["predictions"]), "seconds": round(r["seconds"], 2)}
+            if truth:
+                t = {v: truth[v] for v in found if v in truth}
+                tp = sum(found[v] and x for v, x in t.items())
+                fp = sum(found[v] and not x for v, x in t.items())
+                fn = sum(not found[v] and x for v, x in t.items())
+                row.update({"true positives": tp, "false alarms": fp, "missed": fn,
+                            "precision": round(tp / (tp + fp), 2) if tp + fp else None,
+                            "recall": round(tp / (tp + fn), 2) if tp + fn else None})
+            summary.append(row)
+        st.session_state["comparison"] = (summary, per_vessel, truth)
+    if "comparison" in st.session_state:
+        summary, per_vessel, truth = st.session_state["comparison"]
+        st.dataframe(pd.DataFrame(summary), hide_index=True, width="stretch")
+        st.caption("precision = share of flagged vessels that really are surveying; recall = share of "
+                   "real surveys that were flagged. seconds is the first, uncached run.")
+        grid = pd.DataFrame(per_vessel).replace({True: "survey", False: ""})
+        if truth:
+            grid.insert(0, "truth", [("survey" if truth.get(v) else "") if v in truth else "?"
+                                     for v in grid.index])
+        grid.index.name = "vessel"
+        st.markdown("**Per vessel**")
+        st.dataframe(grid.reset_index(), hide_index=True, width="stretch")
 
 # ============================================================
 # DATA TAB
