@@ -131,6 +131,8 @@ class Config:
     # --- prediction -------------------------------------------------------
     predict_lines: int = 3             # how many upcoming lines to project
     min_progression_for_prediction: float = 0.6
+    # --- model --------------------------------------------------------------
+    model: str = "baseline"            # which detector in models/ to run (file name without .py)
     # --- ports --------------------------------------------------------------
     port_country: str = "flag"         # also list ports of: "flag" = each vessel's flag state,
                                        # a country name (e.g. "China") = that country for every
@@ -1295,8 +1297,15 @@ def _prediction_row(summary, j, kind, start, end, lat0, lon0, h0, h1, last_point
 # PER-VESSEL PIPELINE
 # ============================================================
 
-def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
-    """Clean one vessel's track, find its straight lines, survey blocks and areas, and predict."""
+def detect_surveys(vessel, v: pd.DataFrame, cfg: Config, find_blocks_fn=None,
+                   find_lines_fn=None) -> dict:
+    """
+    Clean one vessel's track, find its straight lines, survey blocks and areas, and predict.
+    A model in models/ can swap in its own steps and keep everything else:
+      find_lines_fn(chunk, cfg) -> [(start, end), ...] point positions within the chunk
+                                   DataFrame, replacing the straight-line finder
+      find_blocks_fn(lines, cfg) -> (blocks, skipped), replacing find_blocks()
+    """
     has_time = bool(v["time"].notna().mean() > 0.9)
     v, order_note = order_track(v, has_time)
     v = clean_track(v, cfg, has_time)
@@ -1321,7 +1330,9 @@ def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
     lines = []
     for _, g in p.groupby("chunk", sort=True):
         offset = g.index[0]
-        for a, b in lines_in_chunk(g["lat"].to_numpy(), g["lon"].to_numpy(), cfg):
+        pairs = (find_lines_fn(g, cfg) if find_lines_fn
+                 else lines_in_chunk(g["lat"].to_numpy(), g["lon"].to_numpy(), cfg))
+        for a, b in pairs:
             info = describe_line(p, a + offset, b + offset, has_time)
             if info["length_km"] >= cfg.min_line_km and info["n_points"] >= cfg.min_points_per_line:
                 info["chunk"] = int(g["chunk"].iloc[0])
@@ -1334,7 +1345,7 @@ def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
         l["role"] = "not in a survey block"
         l["trimmed_km"] = 0.0
 
-    blocks, skipped = find_blocks(lines, cfg)
+    blocks, skipped = (find_blocks_fn or find_blocks)(lines, cfg)
     blocks = [b for b in (trim_block_ends(b, lines, p, cfg, has_time) for b in blocks)
               if len(b) >= cfg.min_lines_per_block]
     for k in skipped:
@@ -1389,12 +1400,17 @@ def detect_surveys(vessel, v: pd.DataFrame, cfg: Config) -> dict:
 def process_vessel(args):
     """Survey detection for one vessel of one dataset, plus its identity and nearby ports."""
     dataset, vessel, v, cfg = args
-    result = detect_surveys(vessel, v, cfg)
+    import models  # here, not at the top: models/ imports this module
+    result = models.detect(cfg.model, vessel, v, cfg)
     result["dataset"] = dataset
     for key in ("lines", "blocks", "rejected", "areas", "predictions"):
         result[key] = [{"dataset": dataset, **row} for row in result[key]]
     result["info"] = info = vessel_info(result)
     info["port_country"], info["port_country_basis"] = port_match_country(info, cfg)
+    import resource_context
+    for area in result["areas"]:   # what the survey is likely looking for, from where it is
+        area.update(resource_context.describe(area["centroid_lat"], area["centroid_lon"],
+                                              info["name"], info["ship_type"]))
     result["nearby_ports"] = survey_ports(result, info["port_country"])
     return result
 
@@ -1831,6 +1847,7 @@ def main():
     print("=" * 64)
     print("SURVEY PATTERN DETECTOR  v3")
     print("=" * 64)
+    print(f"Model          : {cfg.model}")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         results, notes, n_rows = run(paths, cfg, Path(args.out), args.workers, not args.no_maps)
