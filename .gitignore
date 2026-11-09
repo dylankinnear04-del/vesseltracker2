@@ -1,0 +1,18 @@
+# your own data and results stay off GitHub
+input_files/
+survey_results/
+*.xlsx
+*.xls
+# system / python clutter
+.DS_Store
+__pycache__/
+.claude/
+# backup of the pre-v2 project
+old_version_backup_*.zip
+# API tokens: never upload
+gfw_token.txt
+*.token
+upload_batches/
+.venv/
+*.pyc
+.streamlit/secrets.toml
