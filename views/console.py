@@ -1,6 +1,4 @@
 """SeaTrace: the console, full window, on the live Survey Detector data."""
-import datetime
-
 import streamlit as st
 
 from webapp import console, data, state
@@ -17,14 +15,14 @@ header[data-testid="stHeader"], [data-testid="stToolbar"], footer { display: non
 group = state.param("group", data.GROUPS, "mining")
 window = state.param("time", data.WINDOWS, "6m")
 wait = st.empty()
-wait.markdown('<div class="seatrace-wait"><b>SeaTrace</b><br>Reading the ships\' tracks and finding surveys and '
-              'stations: about a minute the first time…</div>', unsafe_allow_html=True)
+wait.markdown('<div class="seatrace-wait"><b>SeaTrace</b><br>Loading ships and detections…</div>',
+              unsafe_allow_html=True)
 notices = []
 if state.is_custom():
     notices.append("Custom detection settings active (Analyst ▸ Detection settings)")
-newest = data.last_updated(data.library())
-if newest and (datetime.date.today() - newest).days > 10:
-    notices.append(f"Ship data last updated {newest:%d %b %Y}: the weekly update may be late")
+late = console.track_notice(data.last_updated(data.library()))
+if late:
+    notices.append(late)
 try:
     if st.query_params.get("source") == "upload" and st.session_state.get("upload_payload"):
         payload = st.session_state["upload_payload"]
