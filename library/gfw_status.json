@@ -1,0 +1,14 @@
+{
+ "china": {
+  "down_since": "2026-11-10",
+  "error": "GFW API error 404: {\"statusCode\":404,\"error\":\"Not Found\",\"messages\":[{\"title\":\"Not Found\",\"detail\":\"This feature is temporarily unavailable because of infrastructure constraints and an upstream data dependency issue. Related features are paused until this is resolved.\"}]}",
+  "last_attempt": "2026-11-10",
+  "ok": false
+ },
+ "mining": {
+  "down_since": "2026-11-10",
+  "error": "GFW API error 404: {\"statusCode\":404,\"error\":\"Not Found\",\"messages\":[{\"title\":\"Not Found\",\"detail\":\"This feature is temporarily unavailable because of infrastructure constraints and an upstream data dependency issue. Related features are paused until this is resolved.\"}]}",
+  "last_attempt": "2026-11-10",
+  "ok": false
+ }
+}
