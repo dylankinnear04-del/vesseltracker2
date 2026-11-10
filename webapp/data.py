@@ -186,8 +186,9 @@ def _zip_folder(folder: Path, extra: dict) -> bytes:
 # ============================================================
 
 def library_files() -> tuple:
-    """(file, modified time) for the catalog and every track: the cache key for the library."""
-    files = [LIBRARY / "vessels.csv"] + sorted((LIBRARY / "tracks").glob("*"))
+    """(file, modified time) for the catalog, every track and the GFW registry/events: the library's cache key."""
+    files = ([LIBRARY / "vessels.csv"] + sorted((LIBRARY / "tracks").glob("*"))
+             + [LIBRARY / "gfw_vessel_info.csv", LIBRARY / "gfw_events.csv"])
     return tuple((str(f), f.stat().st_mtime) for f in files if f.is_file())
 
 
