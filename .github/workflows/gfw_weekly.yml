@@ -6,6 +6,7 @@
 #    below (made on the GFW map site; to add a ship, add it to that group and to
 #    the CSV).
 # 2. Every Chinese ship GFW classes as survey / seismic.
+# 3. Registry details and GFW events for every library ship (for the website's ship profiles).
 #
 # Needs one repository secret, GFW_TOKEN (Settings > Secrets and variables > Actions),
 # holding the GFW API token. Run it by hand from the Actions tab ("Run workflow").
@@ -71,11 +72,19 @@ jobs:
           GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
         run: python gfw_fetch.py --months "$MONTHS"
 
+      - name: Registry details and events (port visits, loitering, encounters)
+        id: enrich
+        continue-on-error: true
+        env:
+          GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
+        run: python gfw_fetch.py --enrich --months "$MONTHS"
+
       - name: Commit new data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add library/vessels.csv library/tracks
+          git add library/gfw_vessel_info.csv library/gfw_events.csv 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No new positions this week."
             exit 0
@@ -85,7 +94,7 @@ jobs:
           git push
 
       - name: Report a failed pull
-        if: steps.mining.outcome == 'failure' || steps.china.outcome == 'failure'
+        if: steps.mining.outcome == 'failure' || steps.china.outcome == 'failure' || steps.enrich.outcome == 'failure'
         run: |
-          echo "::error::A GFW pull failed (deep-sea mining: ${{ steps.mining.outcome }}, China: ${{ steps.china.outcome }}). Data from the other pull was still committed."
+          echo "::error::A GFW pull failed (deep-sea mining: ${{ steps.mining.outcome }}, China: ${{ steps.china.outcome }}, registry/events: ${{ steps.enrich.outcome }}). Data from the other pulls was still committed."
           exit 1
