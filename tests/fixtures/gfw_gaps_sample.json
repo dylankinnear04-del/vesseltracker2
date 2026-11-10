@@ -1,0 +1,410 @@
+{
+ "mmsi": "273434310",
+ "metadata": {
+  "datasets": [
+   "public-global-gaps-events:v5.0"
+  ],
+  "vessels": [
+   "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448"
+  ],
+  "dateRange": {
+   "from": "2025-11-01",
+   "to": "2026-11-05"
+  }
+ },
+ "limit": 5,
+ "offset": 0,
+ "nextOffset": 5,
+ "total": 6,
+ "entries": [
+  {
+   "start": "2025-12-22T22:42:08.000Z",
+   "end": "2025-12-27T23:50:38.000Z",
+   "id": "81b93c75cd047c225c8d1c1acd0bc4da",
+   "type": "gap",
+   "position": {
+    "lat": 19.7832,
+    "lon": 151.0112
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [],
+    "rfmo": [
+     "ACAP",
+     "IWC",
+     "WCPFC"
+    ],
+    "fao": [
+     "71",
+     "71.6.1"
+    ],
+    "majorFao": [
+     "71"
+    ],
+    "eez12Nm": [],
+    "highSeas": [
+     "high_seas"
+    ],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIHSTREATY28",
+     "AIHSTREATY9",
+     "AIHSTREATY7"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    150.829205,
+    18.004556666666666,
+    151.19323666666668,
+    21.561895
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 441,
+    "endDistanceFromShoreKm": 566,
+    "startDistanceFromPortKm": 886.0113125,
+    "endDistanceFromPortKm": 658.7214375
+   },
+   "vessel": {
+    "id": "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448",
+    "name": "GELENDZHIK",
+    "ssvid": "273434310",
+    "flag": "RUS",
+    "type": "seismic_vessel",
+    "nextPort": null
+   },
+   "gap": {
+    "intentionalDisabling": true,
+    "distanceKm": "395.64646363920656",
+    "durationHours": 121.14166666666667,
+    "impliedSpeedKnots": "1.7634890263893825",
+    "positions12HoursBeforeSat": "195",
+    "positionsPerDaySatReception": 253.0550613516326,
+    "offPosition": {
+     "lat": 21.561895,
+     "lon": 150.829205
+    },
+    "onPosition": {
+     "lat": 18.004556666666666,
+     "lon": 151.19323666666668
+    }
+   }
+  },
+  {
+   "start": "2026-02-10T05:35:02.000Z",
+   "end": "2026-02-11T03:50:21.000Z",
+   "id": "56e6c30a74dce5a9538bb746e1513345",
+   "type": "gap",
+   "position": {
+    "lat": 17.4969,
+    "lon": 153.1803
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [],
+    "rfmo": [
+     "ACAP",
+     "IWC",
+     "WCPFC"
+    ],
+    "fao": [
+     "71",
+     "71.6.1"
+    ],
+    "majorFao": [
+     "71"
+    ],
+    "eez12Nm": [],
+    "highSeas": [
+     "high_seas"
+    ],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIHSTREATY28",
+     "AIHSTREATY7",
+     "AIHSTREATY9"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    153.12309833333333,
+    17.485571666666665,
+    153.23755333333332,
+    17.508193333333335
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 756,
+    "endDistanceFromShoreKm": 756,
+    "startDistanceFromPortKm": 828.093625,
+    "endDistanceFromPortKm": 838.6420625
+   },
+   "vessel": {
+    "id": "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448",
+    "name": "GELENDZHIK",
+    "ssvid": "273434310",
+    "flag": "RUS",
+    "type": "seismic_vessel",
+    "nextPort": null
+   },
+   "gap": {
+    "intentionalDisabling": true,
+    "distanceKm": "12.410425726783464",
+    "durationHours": 22.255277777777778,
+    "impliedSpeedKnots": "0.3011013329903172",
+    "positions12HoursBeforeSat": "275",
+    "positionsPerDaySatReception": 296.86564095906544,
+    "offPosition": {
+     "lat": 17.508193333333335,
+     "lon": 153.12309833333333
+    },
+    "onPosition": {
+     "lat": 17.485571666666665,
+     "lon": 153.23755333333332
+    }
+   }
+  },
+  {
+   "start": "2026-04-25T17:07:45.000Z",
+   "end": "2026-04-26T17:18:17.000Z",
+   "id": "d6cae8d4f4a8508b16adc3d3d9f958c5",
+   "type": "gap",
+   "position": {
+    "lat": 13.4561,
+    "lon": -134.5349
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [],
+    "rfmo": [
+     "IWC",
+     "IATTC",
+     "ACAP"
+    ],
+    "fao": [
+     "77"
+    ],
+    "majorFao": [
+     "77"
+    ],
+    "eez12Nm": [],
+    "highSeas": [
+     "high_seas"
+    ],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY2",
+     "AIHSTREATY36",
+     "AIHSTREATY28"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    -134.59168666666667,
+    13.441386666666666,
+    -134.47816833333334,
+    13.470743333333333
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 2176,
+    "endDistanceFromShoreKm": 2190,
+    "startDistanceFromPortKm": 2298.5325,
+    "endDistanceFromPortKm": 2287.5425
+   },
+   "vessel": {
+    "id": "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448",
+    "name": "GELENDZHIK",
+    "ssvid": "273434310",
+    "flag": "RUS",
+    "type": "seismic_vessel",
+    "nextPort": null
+   },
+   "gap": {
+    "intentionalDisabling": true,
+    "distanceKm": "12.713973733247016",
+    "durationHours": 24.175555555555555,
+    "impliedSpeedKnots": "0.2839643788308522",
+    "positions12HoursBeforeSat": "495",
+    "positionsPerDaySatReception": 464.51358354358354,
+    "offPosition": {
+     "lat": 13.470743333333333,
+     "lon": -134.47816833333334
+    },
+    "onPosition": {
+     "lat": 13.441386666666666,
+     "lon": -134.59168666666667
+    }
+   }
+  },
+  {
+   "start": "2026-05-01T20:11:51.000Z",
+   "end": "2026-05-02T12:19:42.000Z",
+   "id": "92dcd84ceb8c3e5f00e435485c6a42ba",
+   "type": "gap",
+   "position": {
+    "lat": 13.4978,
+    "lon": -134.5815
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [],
+    "rfmo": [
+     "ACAP",
+     "IATTC",
+     "IWC"
+    ],
+    "fao": [
+     "77"
+    ],
+    "majorFao": [
+     "77"
+    ],
+    "eez12Nm": [],
+    "highSeas": [
+     "high_seas"
+    ],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIHSTREATY36",
+     "AIHSTREATY2"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    -134.62251333333333,
+    13.4882,
+    -134.54056666666668,
+    13.507341666666667
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 2183,
+    "endDistanceFromShoreKm": 2192,
+    "startDistanceFromPortKm": 2290.27575,
+    "endDistanceFromPortKm": 2282.94525
+   },
+   "vessel": {
+    "id": "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448",
+    "name": "GELENDZHIK",
+    "ssvid": "273434310",
+    "flag": "RUS",
+    "type": "seismic_vessel",
+    "nextPort": null
+   },
+   "gap": {
+    "intentionalDisabling": true,
+    "distanceKm": "9.121164458818853",
+    "durationHours": 16.13083333333333,
+    "impliedSpeedKnots": "0.3053180640581361",
+    "positions12HoursBeforeSat": "507",
+    "positionsPerDaySatReception": 464.51358354358354,
+    "offPosition": {
+     "lat": 13.507341666666667,
+     "lon": -134.54056666666668
+    },
+    "onPosition": {
+     "lat": 13.4882,
+     "lon": -134.62251333333333
+    }
+   }
+  },
+  {
+   "start": "2026-05-02T17:58:52.000Z",
+   "end": "2026-05-03T19:56:07.000Z",
+   "id": "06c143e3c11b09ab0336ccec17ed59ae",
+   "type": "gap",
+   "position": {
+    "lat": 13.4832,
+    "lon": -134.6625
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [],
+    "rfmo": [
+     "IATTC",
+     "ACAP",
+     "IWC"
+    ],
+    "fao": [
+     "77"
+    ],
+    "majorFao": [
+     "77"
+    ],
+    "eez12Nm": [],
+    "highSeas": [
+     "high_seas"
+    ],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY2",
+     "AIHSTREATY28",
+     "AIHSTREATY36"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    -134.76357833333333,
+    13.456456666666666,
+    -134.56138,
+    13.509866666666667
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 2185,
+    "endDistanceFromShoreKm": 2207,
+    "startDistanceFromPortKm": 2288.2485,
+    "endDistanceFromPortKm": 2269.942
+   },
+   "vessel": {
+    "id": "7a45bc0f1-1514-d9fa-f501-6c68d3ae7448",
+    "name": "GELENDZHIK",
+    "ssvid": "273434310",
+    "flag": "RUS",
+    "type": "seismic_vessel",
+    "nextPort": null
+   },
+   "gap": {
+    "intentionalDisabling": true,
+    "distanceKm": "22.675665962474564",
+    "durationHours": 25.954166666666666,
+    "impliedSpeedKnots": "0.4717500764550658",
+    "positions12HoursBeforeSat": "89",
+    "positionsPerDaySatReception": 464.51358354358354,
+    "offPosition": {
+     "lat": 13.509866666666667,
+     "lon": -134.56138
+    },
+    "onPosition": {
+     "lat": 13.456456666666666,
+     "lon": -134.76357833333333
+    }
+   }
+  }
+ ]
+}

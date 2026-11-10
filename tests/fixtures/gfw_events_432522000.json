@@ -1,0 +1,1845 @@
+{
+ "metadata": {
+  "datasets": [
+   "public-global-loitering-events:v5.0",
+   "public-global-port-visits-events:v5.0"
+  ],
+  "vessels": [
+   "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+   "1a0cd619d-dd9f-3f08-f734-9e13bc1c36e6"
+  ],
+  "dateRange": {
+   "from": "2025-11-01",
+   "to": "2026-11-05"
+  }
+ },
+ "limit": 50,
+ "offset": 0,
+ "nextOffset": null,
+ "total": 19,
+ "entries": [
+  {
+   "start": "2025-10-31T05:59:18.000Z",
+   "end": "2025-11-20T23:55:57.000Z",
+   "id": "f5029916ef187d0d4d596a4fe205b5e2",
+   "type": "loitering",
+   "position": {
+    "lat": 37.9178,
+    "lon": 144.9518
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "PICES",
+     "ACAP",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN1",
+     "AIHSTREATY28",
+     "AIHSTREATY7",
+     "AIHSTREATY36"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    144.94453,
+    37.92387166666666,
+    144.95902833333332,
+    37.91176166666666
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 294,
+    "endDistanceFromShoreKm": 296,
+    "startDistanceFromPortKm": 302.005875,
+    "endDistanceFromPortKm": 303.3243125
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": {
+     "id": "jpn-sendai",
+     "name": "JPN",
+     "flag": "SENDAI",
+     "portVisitEventId": "e70e652028d2c5c0fb81bb983709316c"
+    }
+   },
+   "loitering": {
+    "totalTimeHours": 497.94416666666666,
+    "totalDistanceKm": 13.136647316367103,
+    "averageSpeedKnots": 0.014245014939233393,
+    "averageDistanceFromShoreKm": 294.78328981914837
+   }
+  },
+  {
+   "start": "2025-11-22T22:20:42.000Z",
+   "end": "2025-11-24T06:15:18.000Z",
+   "id": "e70e652028d2c5c0fb81bb983709316c",
+   "type": "port_visit",
+   "position": {
+    "lat": 38.21,
+    "lon": 141.165
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "PICES",
+     "IWC",
+     "ACAP"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIJPN1",
+     "AIJPN2",
+     "AIHSTREATY36",
+     "AIHSTREATY7"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    141.16498742335213,
+    38.21003235752321,
+    141.16605283071843,
+    38.21477619150292
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 11,
+    "endDistanceFromShoreKm": 11,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "00a7876aa32274153cf844587deaaeb2",
+    "confidence": "4",
+    "durationHrs": 31.91,
+    "startAnchorage": {
+     "anchorageId": "5f898ccd",
+     "atDock": false,
+     "distanceFromShoreKm": "11",
+     "flag": "JPN",
+     "id": "jpn-sendai",
+     "lat": 38.21003235752321,
+     "lon": 141.16498742335213,
+     "name": "SENDAI",
+     "topDestination": "JP SGM OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "5f898ccd",
+     "atDock": false,
+     "distanceFromShoreKm": "11",
+     "flag": "JPN",
+     "id": "jpn-sendai",
+     "lat": 38.21003235752321,
+     "lon": 141.16498742335213,
+     "name": "SENDAI",
+     "topDestination": "JP SGM OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "5f898cd1",
+     "atDock": false,
+     "distanceFromShoreKm": "11",
+     "flag": "JPN",
+     "id": "jpn-sendai",
+     "lat": 38.21477619150292,
+     "lon": 141.16605283071843,
+     "name": "SENDAI",
+     "topDestination": "JP SGM"
+    }
+   }
+  },
+  {
+   "start": "2025-11-24T22:54:18.000Z",
+   "end": "2025-12-07T00:04:00.000Z",
+   "id": "c80b7dcd01aca23c1101ced6fbb5708d",
+   "type": "loitering",
+   "position": {
+    "lat": 38.756,
+    "lon": 144.1278
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "WCPFC",
+     "PICES",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [
+     "EA_31",
+     "EA_28"
+    ],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIHSTREATY36",
+     "AIJPN1",
+     "AIHSEBSA137",
+     "AIHSTREATY7",
+     "AIHSEBSA140"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    144.13172333333333,
+    38.76251333333333,
+    144.123915,
+    38.749535
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 195,
+    "endDistanceFromShoreKm": 195,
+    "startDistanceFromPortKm": 199.395578125,
+    "endDistanceFromPortKm": 199.21209375
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": {
+     "id": "jpn-shimizu",
+     "name": "JPN",
+     "flag": "SHIMIZU",
+     "portVisitEventId": "19edd36abed3790d1a9e697af9d090ee"
+    }
+   },
+   "loitering": {
+    "totalTimeHours": 289.1616666666667,
+    "totalDistanceKm": 19.158525056156954,
+    "averageSpeedKnots": 0.03577505990852485,
+    "averageDistanceFromShoreKm": 194.07511337568536
+   }
+  },
+  {
+   "start": "2025-12-09T23:18:52.000Z",
+   "end": "2025-12-24T01:50:02.000Z",
+   "id": "19edd36abed3790d1a9e697af9d090ee",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "IWC",
+     "PICES",
+     "WCPFC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIJPN2",
+     "AIHSTREATY7",
+     "AIHSTREATY28",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.5306854871034,
+    35.03342187827624
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "0f5eacc9caa2944ab36754452d90eeab",
+    "confidence": "4",
+    "durationHrs": 338.51944444444445,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3189",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.03342187827624,
+     "lon": 138.5306854871034,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ"
+    }
+   }
+  },
+  {
+   "start": "2025-12-26T02:43:33.000Z",
+   "end": "2026-01-06T06:58:23.000Z",
+   "id": "50ed8020ed2ded7a8621ebb056125063",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "PICES",
+     "IWC",
+     "ACAP"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY7",
+     "AIJPN2",
+     "AIHSTREATY36",
+     "AIJPN1",
+     "AIHSTREATY28"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "ae094e399ee3c314cfb6e06a972aed57",
+    "confidence": "4",
+    "durationHrs": 268.2472222222222,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-01-09T04:07:38.000Z",
+   "end": "2026-01-12T00:40:00.000Z",
+   "id": "3a85bd55c8839a275caed14d7490e2d2",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0504,
+    "lon": 138.5399
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "IWC",
+     "PICES",
+     "WCPFC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIJPN2",
+     "AIHSTREATY28",
+     "AIHSTREATY7",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53988815508185,
+    35.05039236125914,
+    138.53607270600995,
+    35.04530761357504
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "7932712b8fef801688d8c9cbcb5fea49",
+    "confidence": "4",
+    "durationHrs": 68.53944444444444,
+    "startAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-01-12T07:56:37.000Z",
+   "end": "2026-01-12T15:59:39.000Z",
+   "id": "42df0e6d95c7a9406978de345f339cd4",
+   "type": "loitering",
+   "position": {
+    "lat": 34.2149,
+    "lon": 138.4849
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "WCPFC",
+     "PICES",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [
+     "EA_34",
+     "EA_29"
+    ],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSEBSA143",
+     "AIJPN1",
+     "AIHSTREATY7",
+     "AIHSEBSA138",
+     "AIHSTREATY36",
+     "AIHSTREATY28"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.48723333333334,
+    34.213165,
+    138.48260833333333,
+    34.216651666666664
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 48,
+    "endDistanceFromShoreKm": 48,
+    "startDistanceFromPortKm": 49.49254296875,
+    "endDistanceFromPortKm": 49.49254296875
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": {
+     "id": "jpn-shimizu",
+     "name": "JPN",
+     "flag": "SHIMIZU",
+     "portVisitEventId": "0afedc856e755e5d84ba0ca4b5d46376"
+    }
+   },
+   "loitering": {
+    "totalTimeHours": 8.050555555555556,
+    "totalDistanceKm": 0.5708497926011916,
+    "averageSpeedKnots": 0.038287324041083697,
+    "averageDistanceFromShoreKm": 48
+   }
+  },
+  {
+   "start": "2026-01-17T00:56:01.000Z",
+   "end": "2026-02-08T17:59:53.000Z",
+   "id": "c73af166a63db90cc355f5c6afa0a9e9",
+   "type": "loitering",
+   "position": {
+    "lat": 23.0581,
+    "lon": 154.2089
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "IWC",
+     "ACAP"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIJPN1",
+     "AIHSTREATY36",
+     "AIHSTREATY7"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    154.21144833333332,
+    23.058963333333335,
+    154.20633333333333,
+    23.057168333333333
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 138,
+    "endDistanceFromShoreKm": 138,
+    "startDistanceFromPortKm": 1244.88625,
+    "endDistanceFromPortKm": 1244.13675
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": {
+     "id": "jpn-shimizu",
+     "name": "JPN",
+     "flag": "SHIMIZU",
+     "portVisitEventId": "0afedc856e755e5d84ba0ca4b5d46376"
+    }
+   },
+   "loitering": {
+    "totalTimeHours": 545.0644444444445,
+    "totalDistanceKm": 7.220864740333426,
+    "averageSpeedKnots": 0.0071532001089349715,
+    "averageDistanceFromShoreKm": 138.03552537082268
+   }
+  },
+  {
+   "start": "2026-02-14T04:47:16.000Z",
+   "end": "2026-03-20T00:50:04.000Z",
+   "id": "0afedc856e755e5d84ba0ca4b5d46376",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "IWC",
+     "PICES",
+     "WCPFC",
+     "ACAP"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY7",
+     "AIHSTREATY28",
+     "AIHSTREATY36",
+     "AIJPN1",
+     "AIJPN2"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.53607270600995,
+    35.04530761357504
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "0753a0e2766a13f5457d693ca61c382a",
+    "confidence": "4",
+    "durationHrs": 812.0466666666666,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-03-22T09:59:49.000Z",
+   "end": "2026-06-06T12:59:07.000Z",
+   "id": "8aa69a34029c36c6b3701fca5f8a5a8a",
+   "type": "loitering",
+   "position": {
+    "lat": 41.8122,
+    "lon": 142.3046
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "IWC",
+     "PICES",
+     "ACAP"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN1",
+     "AIHSTREATY28",
+     "AIHSTREATY36",
+     "AIHSTREATY7"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    142.30950833333333,
+    41.80175333333333,
+    142.29970166666666,
+    41.82266166666667
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 53,
+    "endDistanceFromShoreKm": 51,
+    "startDistanceFromPortKm": 55.2083203125,
+    "endDistanceFromPortKm": 54.2025703125
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": {
+     "id": "jpn-shimizu",
+     "name": "JPN",
+     "flag": "SHIMIZU",
+     "portVisitEventId": "92f04a60c8df3b6f39d92cc1b56a31d3"
+    }
+   },
+   "loitering": {
+    "totalTimeHours": 1826.988333333333,
+    "totalDistanceKm": 12.385162120492389,
+    "averageSpeedKnots": 0.0036603695967016656,
+    "averageDistanceFromShoreKm": 51.00012601412747
+   }
+  },
+  {
+   "start": "2026-06-09T07:48:46.000Z",
+   "end": "2026-06-19T07:14:12.000Z",
+   "id": "92f04a60c8df3b6f39d92cc1b56a31d3",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "IWC",
+     "WCPFC",
+     "PICES"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIJPN2",
+     "AIHSTREATY36",
+     "AIHSTREATY7",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "b2c6c57a25c483ff590b1849be642f7b",
+    "confidence": "4",
+    "durationHrs": 239.42388888888888,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-06-20T06:12:32.000Z",
+   "end": "2026-06-25T07:51:48.000Z",
+   "id": "e1ca1484c5a5d6478faa0a9ff4764450",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0504,
+    "lon": 138.5399
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "ACAP",
+     "IWC",
+     "PICES"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY7",
+     "AIHSTREATY36",
+     "AIHSTREATY28",
+     "AIJPN2",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53988815508185,
+    35.05039236125914,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "68b620d598893b19ae3d5d7680fc778d",
+    "confidence": "4",
+    "durationHrs": 121.65444444444445,
+    "startAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-06-28T04:45:04.000Z",
+   "end": "2026-08-24T00:49:59.000Z",
+   "id": "40693d629e2a54c7ac71a24c2c23b25b",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "WCPFC",
+     "PICES",
+     "ACAP",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY28",
+     "AIHSTREATY7",
+     "AIHSTREATY36",
+     "AIJPN2",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "23f9ccd8a9ba540418cd923254a84faa",
+    "confidence": "4",
+    "durationHrs": 1364.0819444444444,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-08-26T23:45:49.000Z",
+   "end": "2026-09-03T00:46:24.000Z",
+   "id": "bf20761c45dfcc9f25e9084bd4a0d642",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "PICES",
+     "WCPFC",
+     "ACAP",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIJPN2",
+     "AIHSTREATY7",
+     "AIHSTREATY28",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.51889772974624,
+    35.00835471254766
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 0,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "e37595a876d2672419c6cc9bba1d1549",
+    "confidence": "4",
+    "durationHrs": 169.00972222222222,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a31a1",
+     "atDock": true,
+     "distanceFromShoreKm": "0",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.00835471254766,
+     "lon": 138.51889772974624,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ"
+    }
+   }
+  },
+  {
+   "start": "2026-09-08T20:47:24.000Z",
+   "end": "2026-09-09T23:59:53.000Z",
+   "id": "d22058c15754f5782967138a113230e9",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0504,
+    "lon": 138.5399
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "PICES",
+     "ACAP",
+     "WCPFC",
+     "IWC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN2",
+     "AIHSTREATY28",
+     "AIHSTREATY36",
+     "AIHSTREATY7",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53988815508185,
+    35.05039236125914,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "88c1dc074498a68ad51e601eb80a212d",
+    "confidence": "4",
+    "durationHrs": 27.208055555555557,
+    "startAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-09-10T02:29:34.000Z",
+   "end": "2026-09-10T06:28:03.000Z",
+   "id": "491304d6863e8b475b8076d7cf4e0ad8",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0504,
+    "lon": 138.5399
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "IWC",
+     "ACAP",
+     "WCPFC",
+     "PICES"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIHSTREATY36",
+     "AIJPN1",
+     "AIHSTREATY7",
+     "AIHSTREATY28",
+     "AIJPN2"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53988815508185,
+    35.05039236125914,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "9beb3efe9a83c67301d68c242e51cec0",
+    "confidence": "4",
+    "durationHrs": 3.9747222222222223,
+    "startAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-09-12T23:48:03.000Z",
+   "end": "2026-09-19T00:45:44.000Z",
+   "id": "29e062e3680585366b99de58602413ba",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "IWC",
+     "PICES",
+     "ACAP",
+     "WCPFC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN1",
+     "AIHSTREATY7",
+     "AIJPN2",
+     "AIHSTREATY28",
+     "AIHSTREATY36"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.5306854871034,
+    35.03342187827624
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "995d4e2773b2798d1cdc39b657975ec6",
+    "confidence": "4",
+    "durationHrs": 144.96138888888888,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3189",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.03342187827624,
+     "lon": 138.5306854871034,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ"
+    }
+   }
+  },
+  {
+   "start": "2026-09-22T02:24:42.000Z",
+   "end": "2026-10-22T00:51:47.000Z",
+   "id": "9eb0c5b3f5d68b89cfbab1450a94c611",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0504,
+    "lon": 138.5399
+   },
+   "regions": {
+    "mpa": [],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "IWC",
+     "WCPFC",
+     "ACAP",
+     "PICES"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN2",
+     "AIHSTREATY36",
+     "AIHSTREATY28",
+     "AIHSTREATY7",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53988815508185,
+    35.05039236125914,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "00aebe7bdedfc2a5eeba801d150f069d",
+    "confidence": "4",
+    "durationHrs": 718.4513888888889,
+    "startAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  },
+  {
+   "start": "2026-10-25T23:43:58.000Z",
+   "end": "2026-11-03T01:00:44.000Z",
+   "id": "b7a628981c46b4a04c866bf92d608c62",
+   "type": "port_visit",
+   "position": {
+    "lat": 35.0453,
+    "lon": 138.5361
+   },
+   "regions": {
+    "mpa": [
+     "555621398"
+    ],
+    "eez": [
+     "8487"
+    ],
+    "rfmo": [
+     "ACAP",
+     "PICES",
+     "IWC",
+     "WCPFC"
+    ],
+    "fao": [
+     "61"
+    ],
+    "majorFao": [
+     "61"
+    ],
+    "eez12Nm": [],
+    "highSeas": [],
+    "mpaNoTakePartial": [],
+    "mpaNoTake": [],
+    "ebsa": [],
+    "imma": [],
+    "dukePaa": [],
+    "protectedseas": [
+     "AIJPN2",
+     "AIHSTREATY7",
+     "AIHSTREATY36",
+     "AIHSTREATY28",
+     "AIJPN1"
+    ],
+    "hsp": [],
+    "fraGfcmFao": []
+   },
+   "boundingBox": [
+    138.53607270600995,
+    35.04530761357504,
+    138.53988815508185,
+    35.05039236125914
+   ],
+   "distances": {
+    "startDistanceFromShoreKm": 1,
+    "endDistanceFromShoreKm": 1,
+    "startDistanceFromPortKm": 0,
+    "endDistanceFromPortKm": 0
+   },
+   "vessel": {
+    "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+    "name": "CHIKYU",
+    "ssvid": "432522000",
+    "flag": "JPN",
+    "type": "other_non_fishing",
+    "nextPort": null
+   },
+   "port_visit": {
+    "visitId": "1a85965d1f6c9f1c6c7dd67c1c1d3e75",
+    "confidence": "4",
+    "durationHrs": 193.27944444444444,
+    "startAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "intermediateAnchorage": {
+     "anchorageId": "601a3223",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.04530761357504,
+     "lon": 138.53607270600995,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    },
+    "endAnchorage": {
+     "anchorageId": "601a3217",
+     "atDock": false,
+     "distanceFromShoreKm": "1",
+     "flag": "JPN",
+     "id": "jpn-shimizu",
+     "lat": 35.05039236125914,
+     "lon": 138.53988815508185,
+     "name": "SHIMIZU",
+     "topDestination": "JP SMZ OFF"
+    }
+   }
+  }
+ ]
+}

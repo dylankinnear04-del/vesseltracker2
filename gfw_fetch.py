@@ -13,6 +13,7 @@ ship library, so the web app and detector can look for survey patterns.
     python gfw_fetch.py --watchlist "Deep Sea Mining Vessels.csv"
     python gfw_fetch.py --watchlist list.csv --vessel-group my-group-id
     python gfw_fetch.py --watchlist list.csv --vessel-group my-group-id --group-only
+    python gfw_fetch.py --enrich --months 12          # registry details + events for library ships
 
 How: GFW's "4Wings" AIS vessel-presence report, grouped by vessel at hourly
 time and 0.01-degree (~1 km) space resolution, gives one grid cell per vessel
@@ -244,6 +245,142 @@ def save(df: pd.DataFrame, names: dict | None = None) -> tuple[int, int]:
     return linked, added
 
 
+# ============================================================
+# ENRICH: registry details and GFW events for library ships (--enrich)
+# ============================================================
+GATEWAY = "https://gateway.api.globalfishingwatch.org/v3"
+INFO_FILE = LIBRARY / "gfw_vessel_info.csv"
+EVENTS_FILE = LIBRARY / "gfw_events.csv"
+EVENT_DATASETS = ["public-global-loitering-events:latest", "public-global-port-visits-events:latest",
+                  "public-global-encounters-events:latest", "public-global-gaps-events:latest"]
+INFO_COLS = ["mmsi", "gfw_ids", "owner", "owner_flag", "vessel_type", "length_m", "gross_tonnage", "registry_source"]
+EVENT_COLS = ["event_id", "mmsi", "kind", "start", "end", "hours", "lat", "lon", "port", "partner", "km",
+              "kn", "shore_km", "port_km", "high_seas", "intent", "off_lat", "off_lon", "on_lat", "on_lon"]
+
+
+def _get(tok: str, path: str, params: list) -> dict:
+    url = f"{GATEWAY}{path}?{urllib.parse.urlencode(params)}"
+    for attempt in range(5):
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {tok}",
+                                                   "User-Agent": "SurveyDetector/1.0 (non-commercial research)"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and attempt < 4:
+                time.sleep(20 * (attempt + 1))
+                continue
+            raise
+        except urllib.error.URLError:
+            if attempt < 4:
+                time.sleep(20)
+                continue
+            raise
+    return {}
+
+
+def _first(values: list, key: str = "value"):
+    return values[0].get(key) if values else None
+
+
+def parse_identity(mmsi: str, search: dict) -> tuple[dict, list[str]]:
+    """Registry details for one MMSI from a /vessels/search response, and its GFW vessel ids."""
+    entries = [e for e in search.get("entries", [])
+               if any(str(x.get("ssvid")) == str(mmsi) for x in e.get("selfReportedInfo", []))]
+    ids = sorted({x["id"] for e in entries for x in e.get("selfReportedInfo", []) if x.get("id")})
+    owner = owner_flag = vtype = source = ""
+    length = gt = None
+    for e in entries:
+        for o in e.get("registryOwners", []):
+            owner, owner_flag = owner or o.get("name", ""), owner_flag or o.get("flag", "")
+        for c in e.get("combinedSourcesInfo", []):
+            vtype = vtype or _first(c.get("shiptypes", []), "name") or ""
+            length = length or _first(c.get("bestLengthM", []))
+            gt = gt or _first(c.get("bestTonnageGt", []))
+            source = source or _first(c.get("bestLengthM", []), "source") or ""
+        if e.get("registryInfo"):
+            source = "registry"
+    info = {"mmsi": str(mmsi), "gfw_ids": " ".join(ids), "owner": owner, "owner_flag": owner_flag,
+            "vessel_type": vtype, "length_m": round(float(length), 1) if length else None,
+            "gross_tonnage": int(gt) if gt else None,
+            "registry_source": "GFW registry" if source == "registry" else ("GFW classifier estimate" if source else "")}
+    return info, ids
+
+
+def parse_events(mmsi: str, events: dict) -> pd.DataFrame:
+    """GFW loitering / port visit / encounter events from a /events response."""
+    rows = []
+    for e in events.get("entries", []):
+        start, end = pd.Timestamp(e["start"]), pd.Timestamp(e["end"])
+        pos = e.get("position") or {}
+        pv = e.get("port_visit") or {}
+        enc = e.get("encounter") or {}
+        lo = e.get("loitering") or {}
+        gap = e.get("gap") or {}
+        dist = e.get("distances") or {}
+        port = ((pv.get("intermediateAnchorage") or pv.get("startAnchorage") or {}).get("name") or "")
+        num = lambda x: float(x) if x not in (None, "") else None   # noqa: E731  (GFW sends some numbers as text)
+        off, on = gap.get("offPosition") or {}, gap.get("onPosition") or {}
+        rows.append({"event_id": e["id"], "mmsi": str(mmsi), "kind": e.get("type", ""),
+                     "start": start.isoformat(), "end": end.isoformat(),
+                     "hours": round(pv.get("durationHrs") or lo.get("totalTimeHours") or gap.get("durationHours")
+                                    or (end - start).total_seconds() / 3600, 2),
+                     "lat": pos.get("lat"), "lon": pos.get("lon"), "port": port.title() if port else "",
+                     "partner": ((enc.get("vessel") or {}).get("name") or ""),
+                     "km": num(lo.get("totalDistanceKm") if lo else gap.get("distanceKm")),
+                     "kn": num(lo.get("averageSpeedKnots") if lo else gap.get("impliedSpeedKnots")),
+                     "shore_km": num(dist.get("startDistanceFromShoreKm")),
+                     "port_km": num(dist.get("startDistanceFromPortKm")),
+                     "high_seas": int(bool((e.get("regions") or {}).get("highSeas"))),
+                     "intent": int(bool(gap.get("intentionalDisabling"))) if gap else None,
+                     "off_lat": off.get("lat"), "off_lon": off.get("lon"), "on_lat": on.get("lat"), "on_lon": on.get("lon")})
+    return pd.DataFrame(rows, columns=EVENT_COLS)
+
+
+def merge_csv(path: Path, new: pd.DataFrame, key: list[str]) -> None:
+    """Add rows to a CSV, newer rows replacing older ones with the same key."""
+    old = pd.read_csv(path, dtype=str) if path.exists() and path.stat().st_size else pd.DataFrame(columns=new.columns)
+    both = pd.concat([old, new.astype(str).replace({"None": "", "nan": ""})], ignore_index=True)
+    both = both.drop_duplicates(subset=key, keep="last")
+    both.to_csv(path, index=False)
+
+
+def enrich(tok: str, start: dt.date, end: dt.date) -> None:
+    """Registry details and events for every library ship with an MMSI and a track."""
+    cat = pd.read_csv(LIBRARY / "vessels.csv", dtype=str).fillna("")
+    mmsis = sorted({m for m, f in zip(cat["mmsi"], cat["track_file"]) if re.fullmatch(r"\d{9}", m) and f})
+    print(f"GFW registry and events for {len(mmsis)} ships, {start} to {end}")
+    infos, events = [], []
+    for i, m in enumerate(mmsis, 1):
+        try:
+            info, ids = parse_identity(m, _get(tok, "/vessels/search", [
+                ("query", m), ("datasets[0]", "public-global-vessel-identity:latest"), ("includes[0]", "OWNERSHIP")]))
+            infos.append(info)
+            if not ids:
+                continue
+            offset = 0
+            while True:
+                params = [(f"datasets[{k}]", d) for k, d in enumerate(EVENT_DATASETS)]
+                params += [("start-date", str(start)), ("end-date", str(end)), ("limit", "200"), ("offset", str(offset))]
+                params += [(f"vessels[{k}]", v) for k, v in enumerate(ids)]
+                page = _get(tok, "/events", params)
+                events.append(parse_events(m, page))
+                if not page.get("nextOffset"):
+                    break
+                offset = page["nextOffset"]
+        except Exception as exc:          # one ship failing should not stop the rest
+            print(f"  {m}: {type(exc).__name__}: {exc}")
+        if i % 10 == 0:
+            print(f"  {i}/{len(mmsis)}")
+    if infos:
+        merge_csv(INFO_FILE, pd.DataFrame(infos, columns=INFO_COLS), key=["mmsi"])
+    if events:
+        merge_csv(EVENTS_FILE, pd.concat([e for e in events if len(e)] or [pd.DataFrame(columns=EVENT_COLS)],
+                                         ignore_index=True), key=["event_id"])
+    print(f"Wrote {INFO_FILE.name} ({len(infos)} ships) and {EVENTS_FILE.name} "
+          f"({sum(len(e) for e in events)} events).")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--months", type=int, default=12, help="how far back from today (default 12)")
@@ -254,6 +391,9 @@ def main():
                     help="comma-separated GFW vessel types (default seismic_vessel; '' for all types)")
     ap.add_argument("--watchlist", help="CSV of vessels to keep (GFW export: name, MMSI, flag, GFW vessel type)")
     ap.add_argument("--vessel-group", default="", help="GFW vessel group ID to pull (made on the GFW map site)")
+    ap.add_argument("--enrich", action="store_true",
+                    help="instead of tracks: GFW registry details and events (loitering, port visits, encounters) "
+                         "for every library ship, into library/gfw_vessel_info.csv and gfw_events.csv")
     ap.add_argument("--group-only", action="store_true",
                     help="with --watchlist and --vessel-group: skip the seismic-class pull")
     args = ap.parse_args()
@@ -265,6 +405,9 @@ def main():
         k = end.year * 12 + end.month - 1 - (args.months - 1)
         start = dt.date(k // 12, k % 12 + 1, 1)
     tok = token()
+    if args.enrich:
+        enrich(tok, start, end)
+        return
     print(f"Global Fishing Watch tracks, {start} to {end}")
 
     linked = added = 0

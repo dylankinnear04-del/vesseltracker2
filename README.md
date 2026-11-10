@@ -44,47 +44,41 @@ the map with the number of ships, and whether ships were there at the same time.
 - `library/`: the ship library the web app opens with: `vessels.csv` (catalog) and
   `tracks/` (one position file per ship)
 
-## Web app
+## Web app: SeaTrace
 
-**Ship library.** The app opens on a searchable list of ships (name, MMSI, IMO,
-operator, flag). Pick ships that have track data, choose a timeframe (all data,
-the last 7 / 30 / 90 / 365 days of the track, or a custom date range) and the
-analysis runs on that part of each track, using the catalog's flag for port
-matching. Ships listed without data are a watchlist still to be exported.
+The site is **SeaTrace**: the analyst console from SeaTrace (a JMU capstone prototype), embedded in
+Streamlit and fed by this project's live pipeline. Its files are in `views/seatrace/`
+(`console.html`, `engine.js`, `ui.js`: SeaTrace's code with small, commented changes; `addons.js`: the
+Survey Detector features added in SeaTrace's style). `views/console.py` shows it full-window;
+`webapp/seatrace_export.py` turns the pipeline's results into SeaTrace's data format.
 
-To add a ship: export its position history from MarineTraffic, put the file in
-`library/tracks/`, and add (or fill in) its row in `library/vessels.csv` with
-`track_file` set to the file name. Fill in `mmsi` and `imo` from the vessel's
-MarineTraffic page; `flag` drives the flag-state port matching. On GitHub: open
-the `library/tracks` folder, **Add file -> Upload files**; then open
-`library/vessels.csv`, click the pencil icon, edit, and commit.
+| Part | What it does |
+|---|---|
+| **Header** | Live stats, **Briefing** (bottom line, the season on fast-forward, how the detector works, the key judgments), **Map / Gallery / Timeline**, **Validation**, **Method & data**; plus ship group and season selectors and the **Analyst** menu. |
+| **Fleet** (left) | Every ship, by country, with search ("/"), filter chips and status; watchlist ships without data at the bottom. |
+| **Alert queue** (left) | Detections ranked P1–P4 with reasons; each has a case status and note (kept in your browser). **Export / Import reviews** and **Download as labels** (for Compare models). |
+| **Map** (centre) | Tracks, surveys, stations, AIS gaps, port calls, GFW loitering, EEZ boundaries, ISA contract areas (live), rare-earth sites, hotspots, plus port routes, predicted next lines and seabed resource regions; time bar with play and **SEASON ▸** replay. |
+| **Assessment** (right) | The selected detection: priority with its eight factors, confidence, reasons, operation cycle, context, **ports & likely target**, GFW registry and events, documented events and watch items, case review, and **Copy link** (the address keeps the selection). |
+| Analyst ▸ **Upload your own track** | Run both detectors on your files (or the sample) and **Open in SeaTrace**. |
+| Analyst ▸ **Detection settings** | Model, thresholds, station thresholds, port matching: for your visit only. |
+| Analyst ▸ **Compare models** | Benchmarks with labels, your uploads or the mining ships; precision / recall. |
+| Analyst ▸ **Data & downloads** | Every table, Excel / ZIP / GeoJSON / HTML map, findings as CSV. |
 
-You can also upload your own CSV / TSV / TXT / Excel exports, one ship or many per file.
-Each file becomes its own **dataset**. Columns such as Latitude/Longitude,
-Timestamp, MMSI, IMO, ship name, ship type, SOG and COG are recognised automatically.
+**Two detectors.** The lawnmower survey detector (`survey_pattern_detector.py`, models in
+`models/`) and the stationkeeping detector (`stationkeeping.py`: a ship holding one spot for
+24 h or more, away from ports, over water deeper than 200 m). On real data it finds Chikyu's
+2026 rare-earth mud test (17 Jan – 8 Feb) to within an hour of GFW's own loitering record.
 
-- **World map.** All datasets on one map you can pan and zoom anywhere. The panel
-  at the top right switches layers on and off: per dataset, the survey patterns,
-  predicted next lines, tracks and vessel positions; then the ports near the
-  surveys, the routes to them, and the rare-earth sites. Basemaps (ocean,
-  satellite, light, dark) are at the bottom left.
-- **Seabed mining areas** (layer group on the map): every International Seabed
-  Authority exploration contract area, coloured by mineral (nodules, sulphides,
-  cobalt crusts) with China-sponsored contracts outlined in red, plus ISA reserved
-  areas, protected areas (APEIs), relinquished areas (off by default), the
-  Clarion-Clipperton Zone outline, and two national zones (Cook Islands EEZ,
-  Japan's Minamitorishima EEZ). Click an area for contractor, sponsoring state,
-  mineral, size and contract year. The ISA boundaries are not stored in this
-  project: the map loads them live from the ISA's public map service, so they stay
-  current. ISA terms allow personal, non-commercial use; republishing needs the
-  ISA's written permission (news@isa.org.jm). The two national zones come from
-  Marine Regions (EEZ v12, CC BY 4.0) in `reference_data/national_seabed_areas.geojson`.
-- **Vessel panel.** Pick a vessel to zoom the map to it and see its identity
-  (name, MMSI, IMO, flag, type, size, destination, MarineTraffic link), its track,
-  each survey area, the ports nearest the survey with rare-earth linked ports
-  highlighted, and the closest rare-earth sites.
-- **Downloads.** Everything as a ZIP, an Excel workbook, GeoJSON for QGIS/ArcGIS,
-  and the interactive map as a standalone HTML page.
+**Priority.** `intel.py` scores each detection on eight factors (resource area, ship type,
+EEZ / jurisdiction, depth, pattern of life, ships working together, AIS gaps, recency) into
+P1–P4 and writes the reasons. It uses `reference_data/` files built by
+`scripts/build_reference.py` (Marine Regions EEZs, ETOPO 2022 depth), the hand-checked
+`vessel_classes.csv`, and the ISA contract areas read live (never stored).
+
+**Ship library.** `library/vessels.csv` (catalog) plus `library/tracks/`; the weekly job also
+writes `library/gfw_vessel_info.csv` and `library/gfw_events.csv` (`gfw_fetch.py --enrich`).
+Watch items and documented events are hand-written in `reference_data/watch_items.csv` and
+`reference_data/reference_events.csv`.
 
 **Flag-state ports.** Each survey is also matched to the nearest ports of its
 vessel's flag state (Chinese ships to Chinese ports, American ships to American
@@ -229,16 +223,16 @@ labelling a few dozen real blocks is the next step to say which is better.
 ### Demo datasets: where the two models differ
 
 `benchmarks/` has three small synthetic datasets (fake ships, MMSI 999xxxxxx),
-each with a labels file, built by `benchmarks/make_demo_datasets.py`. Upload a
-dataset under **Your own files**, then in **Compare models** upload its
-`_labels.csv` and press **Run comparison**. `benchmarks/demo_comparison.png`
+each with a labels file, built by `benchmarks/make_demo_datasets.py`. In
+**Analyst ▸ Validation** pick a benchmark (its labels load automatically) and press
+**Run comparison**. `benchmarks/demo_comparison.png`
 shows both models on the key ships.
 
 | Dataset | Ship | Truth | Line-Chain (baseline) | Sweep |
 |---|---|---|---|---|
 | 1 hourly patrols | Deep Mapper: 12-line survey | survey | found | found |
-| | Patrol One: criss-cross patrol | not | **false alarm** | correct |
-| | Patrol Two: zig-zag patrol | not | **false alarm** | correct |
+| | Patrol One: criss-cross patrol | not | correct (patrol filter) | correct |
+| | Patrol Two: zig-zag patrol | not | correct (patrol filter) | correct |
 | 2 dense, short | Site Surveyor: 4 lines, 5 hours | survey | found | **missed** |
 | | Nodule Surveyor: 9 lines, 1.5 days | survey | found | found |
 | | Cargo Runner: transit | not | correct | correct |

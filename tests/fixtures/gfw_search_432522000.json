@@ -1,0 +1,252 @@
+{
+ "limit": 30,
+ "since": null,
+ "total": 2,
+ "entries": [
+  {
+   "dataset": "public-global-vessel-identity:v5.0",
+   "registryInfoTotalRecords": 0,
+   "registryInfo": [],
+   "registryOwners": [],
+   "combinedSourcesInfo": [
+    {
+     "vesselId": "1a0cd619d-dd9f-3f08-f734-9e13bc1c36e6",
+     "geartypes": [
+      {
+       "name": "OTHER_NON_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "shiptypes": [
+      {
+       "name": "OTHER_NON_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "vesselClassSc": [
+      {
+       "value": "non_fishing",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "atomicClassSc": [
+      {
+       "value": "OTHER_NOT_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "atomicClassScoreSc": [
+      {
+       "value": 0.32778296297264914,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "bestLengthM": [
+      {
+       "value": 162.14198809523813,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "bestTonnageGt": [
+      {
+       "value": 56752,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "bestEnginePowerKw": [
+      {
+       "value": 12019.588666666667,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ],
+     "maxSpeedKn": [
+      {
+       "value": 14.448400000000005,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2017
+      }
+     ]
+    }
+   ],
+   "selfReportedInfo": [
+    {
+     "id": "1a0cd619d-dd9f-3f08-f734-9e13bc1c36e6",
+     "ssvid": "432522000",
+     "shipname": "CHIKYU",
+     "nShipname": "CHIKYU",
+     "flag": "JPN",
+     "callsign": "JRAJ",
+     "imo": "9234044",
+     "messagesCounter": 227,
+     "positionsCounter": 225,
+     "sourceCode": [
+      "AIS"
+     ],
+     "matchFields": "NO_MATCH",
+     "transmissionDateFrom": "2012-01-01T01:10:24Z",
+     "transmissionDateTo": "2017-12-07T00:22:38Z"
+    }
+   ]
+  },
+  {
+   "dataset": "public-global-vessel-identity:v5.0",
+   "registryInfoTotalRecords": 1,
+   "registryInfo": [
+    {
+     "id": "8b07531f97ce7c9f52dd08b33745ecf4",
+     "sourceCode": [
+      "IMO"
+     ],
+     "ssvid": "432522000",
+     "flag": "JPN",
+     "shipname": "CHIKYU",
+     "nShipname": "CHIKYU",
+     "callsign": "JRAJ",
+     "imo": "9234044",
+     "latestVesselInfo": true,
+     "transmissionDateFrom": "2012-03-28T01:39:47Z",
+     "transmissionDateTo": "2026-09-30T23:57:44Z",
+     "geartypes": [
+      "NON_FISHING"
+     ],
+     "lengthM": null,
+     "tonnageGt": 56752,
+     "vesselInfoReference": "280a8a34372a40ef392fb3e7e1ec3b38",
+     "extraFields": []
+    }
+   ],
+   "registryOwners": [
+    {
+     "name": "JAMSTEC",
+     "flag": "JPN",
+     "ssvid": "432522000",
+     "sourceCode": [
+      "IMO"
+     ],
+     "dateFrom": "2012-03-28T01:39:47Z",
+     "dateTo": "2026-09-30T23:57:44Z"
+    }
+   ],
+   "combinedSourcesInfo": [
+    {
+     "vesselId": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+     "geartypes": [
+      {
+       "name": "OTHER_NON_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "shiptypes": [
+      {
+       "name": "OTHER_NON_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "vesselClassSc": [
+      {
+       "value": "non_fishing",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "atomicClassSc": [
+      {
+       "value": "OTHER_NOT_FISHING",
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "atomicClassScoreSc": [
+      {
+       "value": 0.32778296297264914,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "bestLengthM": [
+      {
+       "value": 162.14198809523813,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "bestTonnageGt": [
+      {
+       "value": 56752,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "bestEnginePowerKw": [
+      {
+       "value": 12019.588666666667,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ],
+     "maxSpeedKn": [
+      {
+       "value": 14.448400000000005,
+       "source": "SECONDARY_CLASSIFIER_MODEL",
+       "yearFrom": 2012,
+       "yearTo": 2026
+      }
+     ]
+    }
+   ],
+   "selfReportedInfo": [
+    {
+     "id": "10c55eed1-1a70-5c79-04eb-09ad1746ba5c",
+     "ssvid": "432522000",
+     "shipname": "CHIKYU",
+     "nShipname": "CHIKYU",
+     "flag": "JPN",
+     "callsign": "JRAJ",
+     "imo": "9234044",
+     "messagesCounter": 16159409,
+     "positionsCounter": 2231934,
+     "sourceCode": [
+      "AIS"
+     ],
+     "matchFields": "SEVERAL_FIELDS",
+     "transmissionDateFrom": "2012-01-02T21:02:58Z",
+     "transmissionDateTo": "2026-11-07T23:59:32Z"
+    }
+   ]
+  }
+ ],
+ "metadata": {
+  "query": "432522000",
+  "normalizedQuery": "432522000",
+  "didYouMean": {
+   "shipname": {}
+  }
+ }
+}

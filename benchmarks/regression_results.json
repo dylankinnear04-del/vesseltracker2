@@ -1,0 +1,147 @@
+{
+ "source": "benchmarks/*.csv with their _labels.csv files (benchmarks/make_demo_datasets.py), default model",
+ "rows": [
+  [
+   "999000001",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "999000002",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "999000003",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "999000011",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "999000012",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "999000013",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "999000021",
+   "Survey",
+   "Survey",
+   "No survey",
+   false
+  ],
+  [
+   "999000022",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "999000023",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN001",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN002",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "SYN003",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN004",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "SYN005",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN006",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "SYN007",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN008",
+   "Survey",
+   "Survey",
+   "Survey (1 area)",
+   true
+  ],
+  [
+   "SYN009",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ],
+  [
+   "SYN010",
+   "Not a survey",
+   "No survey",
+   "No survey",
+   true
+  ]
+ ],
+ "survey": {
+  "tp": 7,
+  "fp": 0,
+  "fn": 1,
+  "tn": 11
+ },
+ "fixed": true,
+ "note": "Default detection model on 4 labelled benchmark files (19 ships): 7 of 8 surveys found, 0 false alarms. Compare other models under Analyst \u25b8 Compare models.",
+ "stamp": "4eec6fd2459a69f5"
+}
