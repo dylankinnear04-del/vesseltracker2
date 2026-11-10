@@ -4,11 +4,32 @@ around a data blob, ready to show in an iframe.
 """
 from __future__ import annotations
 
+import datetime
 import json
 from functools import lru_cache
 from pathlib import Path
 
 DIR = Path(__file__).resolve().parents[1] / "views" / "seatrace"
+GFW_STATUS = Path(__file__).resolve().parents[1] / "library" / "gfw_status.json"   # written by gfw_fetch.py
+STALE_DAYS = 10
+
+
+def track_notice(newest: datetime.date | None, status_file: Path = GFW_STATUS,
+                 today: datetime.date | None = None) -> str | None:
+    """The console's notice about old ship tracks: why, when the weekly pull recorded a GFW outage."""
+    try:
+        status = json.loads(status_file.read_text())
+    except (FileNotFoundError, ValueError):
+        status = {}
+    down = sorted(s.get("down_since", "") for s in status.values() if isinstance(s, dict) and s.get("ok") is False)
+    when = f"{newest:%-d %b %Y}" if newest else "unknown"
+    if down and down[0]:
+        since = datetime.date.fromisoformat(down[0])
+        return (f"Ship tracks last updated {when}: Global Fishing Watch's track service has been unavailable "
+                f"since {since:%-d %b}. Registry and events still update weekly; tracks resume when GFW is back")
+    if newest and ((today or datetime.date.today()) - newest).days > STALE_DAYS:
+        return f"Ship data last updated {when}: the weekly update may be late"
+    return None
 
 
 @lru_cache(maxsize=1)
