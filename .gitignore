@@ -16,3 +16,5 @@ upload_batches/
 .venv/
 *.pyc
 .streamlit/secrets.toml
+.superpowers/
+views/seatrace/reference_blob.json
