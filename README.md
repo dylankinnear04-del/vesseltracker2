@@ -80,6 +80,14 @@ writes `library/gfw_vessel_info.csv` and `library/gfw_events.csv` (`gfw_fetch.py
 Watch items and documented events are hand-written in `reference_data/watch_items.csv` and
 `reference_data/reference_events.csv`.
 
+**Console data, built ahead of time.** Running the detector for a ship group and season takes about
+40 s and 1.4 GB, too slow for the first visitor. So the weekly job, and the *Build console data*
+workflow after every push to main, run `scripts/build_console_data.py` and commit `prebuilt/*.json.gz`
+(one per group and season, ~7 MB in all). The site loads one in under a second. Each file carries a
+fingerprint of the ship data and detector code it was built from; a file that no longer matches is
+ignored and the site builds the data itself, as before, until the workflow commits a new one.
+ISA contract polygons are not stored in these files; they are added live.
+
 **Flag-state ports.** Each survey is also matched to the nearest ports of its
 vessel's flag state (Chinese ships to Chinese ports, American ships to American
 ports, and so on), including that country's nearest rare-earth linked port. The
