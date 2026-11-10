@@ -9,6 +9,10 @@
 # 3. Registry details and GFW events for every library ship (for the website's ship profiles).
 # 4. The SeaTrace console's data, built ahead of time (scripts/build_console_data.py, prebuilt/).
 #
+# When GFW's track service is down, the pulls keep what downloaded, record the outage in
+# library/gfw_status.json (the website shows it) and show a warning; the run only fails for problems
+# that need you, like a bad token.
+#
 # Needs one repository secret, GFW_TOKEN (Settings > Secrets and variables > Actions),
 # holding the GFW API token. Run it by hand from the Actions tab ("Run workflow").
 # Data: Powered by Global Fishing Watch, CC BY-NC 4.0 (non-commercial use only).
@@ -93,6 +97,7 @@ jobs:
           git add library/vessels.csv library/tracks
           git add library/gfw_vessel_info.csv library/gfw_events.csv 2>/dev/null || true
           git add prebuilt 2>/dev/null || true
+          git add library/gfw_status.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No new positions this week."
             exit 0
