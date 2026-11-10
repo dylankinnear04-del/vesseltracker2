@@ -1,0 +1,59 @@
+# After every change to the ship data or the detector: build the SeaTrace console's data for each ship group
+# and season (scripts/build_console_data.py) and commit it to prebuilt/, so the website shows it at once instead
+# of running the detector for the first visitor. The weekly GFW update does the same after it pulls new data.
+# Until a build lands the website still works: it builds the data itself, as before (slower first load).
+
+name: Build console data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.py"
+      - "models/**"
+      - "webapp/data.py"
+      - "webapp/seatrace_export.py"
+      - "reference_data/**"
+      - "library/**"
+      - "benchmarks/regression_results.json"
+      - "scripts/build_console_data.py"
+      - "requirements.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gfw-update            # shared with the weekly update: one job commits at a time
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Build console data
+        run: python scripts/build_console_data.py
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add prebuilt
+          if git diff --cached --quiet; then
+            echo "Console data already current."
+            exit 0
+          fi
+          git commit -m "Console data for $(git rev-parse --short HEAD)"
+          git pull --rebase origin main
+          git push
