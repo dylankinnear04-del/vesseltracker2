@@ -63,6 +63,14 @@ LIBRARY = HERE / "library"
 API = "https://gateway.api.globalfishingwatch.org/v3/4wings/report"
 DATASET = "public-global-presence:latest"
 WORLD = {"type": "Polygon", "coordinates": [[[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]]]}
+STATUS_FILE = LIBRARY / "gfw_status.json"     # last successful track pull, and why the latest one failed
+OUTAGES: list[str] = []                       # this run's GFW outage messages (see fetch)
+
+
+class GFWUnavailable(Exception):
+    """GFW's service is down or overloaded (not our request): keep what downloaded and try again next week."""
+
+
 CREDIT = "Global Fishing Watch 4Wings AIS presence, hourly ~1 km (CC BY-NC 4.0, Powered by Global Fishing Watch)"
 FLAG_NAMES = {"CHN": "China", "USA": "United States", "JPN": "Japan", "KOR": "South Korea", "RUS": "Russia",
               "IND": "India", "DEU": "Germany", "FRA": "France", "GBR": "United Kingdom", "NOR": "Norway",
@@ -133,12 +141,16 @@ def report(tok: str, start: dt.date, end: dt.date, flags: list[str] | str = (), 
             if e.code in (500, 502, 503, 504, 524) and attempt < 4:   # 524: report took > 100 s
                 time.sleep(30 * (attempt + 1))
                 continue
+            # GFW's own outage (e.g. 404 "4wings report is temporarily unavailable"), still overloaded after
+            # the retries, or still busy after the wait: not something a token or setting fixes
+            if e.code in (429, 500, 502, 503, 504, 524) or "unavailable" in msg.lower():
+                raise GFWUnavailable(f"GFW API error {e.code}: {msg}") from e
             sys.exit(f"GFW API error {e.code}: {msg}")
         except urllib.error.URLError as e:
             if attempt < 4:
                 time.sleep(30)
                 continue
-            sys.exit(f"Network error: {e}")
+            raise GFWUnavailable(f"Network error: {e}") from e
     return []
 
 
@@ -172,14 +184,43 @@ def read_watchlist(path: Path) -> pd.DataFrame:
 
 
 def fetch(tok: str, start: dt.date, end: dt.date, label: str, **query) -> pd.DataFrame:
+    """Month by month; when GFW is down, keep the months that downloaded and note the outage in OUTAGES."""
     rows = []
+    if OUTAGES:              # already down earlier in this run: don't sit through the retries again
+        print(f"  {label}: skipped, GFW unavailable", flush=True)
+        return pd.DataFrame()
     for a, b in months(start, end):
         t0 = time.time()
-        got = report(tok, a, b, **query)
+        try:
+            got = report(tok, a, b, **query)
+        except GFWUnavailable as exc:
+            OUTAGES.append(str(exc))
+            print(f"  {label} {a} ..: GFW unavailable, keeping the months already downloaded ({exc})", flush=True)
+            break
         rows += got
         print(f"  {label} {a} .. {b - dt.timedelta(days=1)}: {len(got):,} vessel-hours "
               f"({time.time() - t0:.0f}s)", flush=True)
     return pd.DataFrame(rows)
+
+
+def write_status(key: str, error: str | None, today: dt.date | None = None) -> None:
+    """Record this track pull in library/gfw_status.json (read by the website to say why tracks are old)."""
+    today = (today or dt.date.today()).isoformat()
+    try:
+        status = json.loads(STATUS_FILE.read_text())
+    except (FileNotFoundError, ValueError):
+        status = {}
+    s = status.get(key, {})
+    s["last_attempt"] = today
+    if error is None:
+        s.update(ok=True, last_success=today)
+        s.pop("error", None)
+        s.pop("down_since", None)
+    else:
+        s.update(ok=False, error=error[:300])
+        s.setdefault("down_since", today)
+    status[key] = s
+    STATUS_FILE.write_text(json.dumps(status, indent=1, sort_keys=True) + "\n")
 
 
 def save(df: pd.DataFrame, names: dict | None = None) -> tuple[int, int]:
@@ -396,6 +437,8 @@ def main():
                          "for every library ship, into library/gfw_vessel_info.csv and gfw_events.csv")
     ap.add_argument("--group-only", action="store_true",
                     help="with --watchlist and --vessel-group: skip the seismic-class pull")
+    ap.add_argument("--status-key", default="",
+                    help="name of this pull in library/gfw_status.json (default: mining with --watchlist, else china)")
     args = ap.parse_args()
 
     end = dt.date.fromisoformat(args.end) if args.end else dt.date.today() - dt.timedelta(days=4)
@@ -439,6 +482,9 @@ def main():
                    vessel_group=args.vessel_group)
         linked, added = save(df)
     print(f"\nLibrary: {linked} existing ships linked to tracks, {added} new ships added.")
+    write_status(args.status_key or ("mining" if args.watchlist else "china"), OUTAGES[0] if OUTAGES else None)
+    if OUTAGES:   # GitHub Actions shows this as a warning; the run itself does not fail
+        print(f"::warning::GFW's track service was unavailable; kept what downloaded, will retry next week. {OUTAGES[0]}")
     print("Powered by Global Fishing Watch (https://globalfishingwatch.org), CC BY-NC 4.0.")
 
 
