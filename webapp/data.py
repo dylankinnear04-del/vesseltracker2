@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import datetime
 import gc
+import gzip
+import hashlib
 import io
 import json
 import re
@@ -606,10 +608,10 @@ def parse_labels(raw: bytes) -> tuple[dict | None, str | None]:
 
 
 # ============================================================ the SeaTrace console's data
-@st.cache_resource(show_spinner=False, max_entries=3)
-def _payload(group: str, window: str, stamp: tuple, isa_key: str) -> tuple[str, str, str] | None:
+def _console_blob(group: str, window: str) -> dict | None:
+    """The console's data for a ship group and season with the default settings (slow: runs the detector)."""
     from webapp import seatrace_export as sx
-    # built from an uncached analysis: the console only needs the finished JSON, so the (large) results,
+    # built from an uncached analysis: the console only needs the finished data, so the (large) results,
     # tracks and tables are dropped as soon as it exists instead of sitting in the shared cache
     chosen = select_ships(library(), group)
     groups, ids, _ = build_groups(chosen, window)
@@ -618,10 +620,102 @@ def _payload(group: str, window: str, stamp: tuple, isa_key: str) -> tuple[str, 
     res = with_intel(prepare(_run_analysis(groups, default_settings(), ids)), groups)
     blob = sx.build_blob(res, library(), isa_zones(), view={"group": group, "time": window})
     del res
-    out = (sx.to_json(blob),) + sx.header_text(blob)
+    gc.collect()
+    return blob
+
+
+def _finish(blob: dict) -> tuple[str, str, str]:
+    from webapp import seatrace_export as sx
+    return (sx.to_json(blob),) + sx.header_text(blob)
+
+
+@st.cache_resource(show_spinner=False, max_entries=3)
+def _payload(group: str, window: str, stamp: tuple, isa_key: str) -> tuple[str, str, str] | None:
+    blob = _console_blob(group, window)
+    if blob is None:
+        return None
+    out = _finish(blob)
     del blob
     gc.collect()
     return out
+
+
+# ------------------------------------------------ built ahead of time (scripts/build_console_data.py)
+# The weekly update (and every push to main) builds the console data for each ship group and season and
+# commits it to prebuilt/, so a visitor gets it at once instead of waiting about a minute for the detector.
+# A file is used only when its fingerprint matches the ship data and detector code the site is running.
+# ISA polygons are never written (they are read live and added at page load).
+PREBUILT = HERE / "prebuilt"
+_STAMP_CODE = ["survey_pattern_detector.py", "intel.py", "stationkeeping.py", "track_events.py", "port_intel.py",
+               "resource_context.py", "geo_lookup.py", "isa_contracts.py", "webapp/data.py", "webapp/seatrace_export.py",
+               "benchmarks/regression_results.json"]
+
+
+def stamp_inputs() -> list[Path]:
+    """Every file the console data depends on: ship library, reference data, detector and model code."""
+    files = [HERE / f for f in _STAMP_CODE] + sorted((HERE / "models").glob("*.py"))
+    files += sorted(f for f in (HERE / "reference_data").rglob("*") if f.is_file())
+    files += [Path(f) for f, _ in library_files()] + [WATCHLIST]
+    return [f for f in files if f.is_file() and not f.name.startswith(".")]     # .DS_Store etc. are not on GitHub
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def _inputs_stamp(key: tuple) -> str:
+    h = hashlib.sha256()
+    for name, _ in key:
+        f = Path(name)
+        h.update(f.relative_to(HERE).as_posix().encode())
+        h.update(f.read_bytes())
+    return h.hexdigest()[:20]
+
+
+def inputs_stamp() -> str:
+    """Content fingerprint of stamp_inputs() (by content, not modified time: a git checkout resets those)."""
+    return _inputs_stamp(tuple((str(f), f.stat().st_mtime) for f in stamp_inputs()))
+
+
+def prebuilt_path(group: str, window: str) -> Path:
+    return PREBUILT / f"{group}_{window}.json.gz"
+
+
+def write_prebuilt(group: str, window: str) -> Path:
+    """Build the console data now and save it (without ISA polygons) for the site to read."""
+    from webapp import seatrace_export as sx
+    blob = _console_blob(group, window)
+    if blob is not None:
+        blob["zones"] = []
+    # no build time inside: the same inputs give the same bytes, so an unchanged rebuild commits nothing
+    meta = {"stamp": inputs_stamp(), "isa": isa_zones() is not None, "group": group, "window": window, "blob": blob}
+    path = prebuilt_path(group, window)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(gzip.compress(sx.to_json(meta).encode(), compresslevel=9, mtime=0))
+    return path
+
+
+def _read_prebuilt(group: str, window: str, stamp: str, isa_up: bool) -> dict | None:
+    """The saved file's contents if it is current, else None. Built while ISA was down: current only while it still is."""
+    try:
+        meta = json.loads(gzip.decompress(prebuilt_path(group, window).read_bytes()))
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    if meta.get("stamp") != stamp or (isa_up and not meta.get("isa")):
+        return None
+    return meta
+
+
+@st.cache_resource(show_spinner=False, max_entries=6)
+def _prebuilt_payload(group: str, window: str, stamp: str, isa_key: str, file_key: float):
+    """(json, banner, subtitle) from the saved file with today's ISA areas; None: no ships; False: no usable file."""
+    from webapp import seatrace_export as sx
+    zones = isa_zones()
+    meta = _read_prebuilt(group, window, stamp, zones is not None)
+    if meta is None:
+        return False
+    blob = meta["blob"]
+    if blob is None:
+        return None
+    blob["zones"] = sx.zones_list(zones)
+    return _finish(blob)
 
 
 def public_payload(group: str, window: str, settings: dict | None = None, station: dict | None = None):
@@ -631,6 +725,11 @@ def public_payload(group: str, window: str, settings: dict | None = None, statio
     window = window if window in WINDOWS else "6m"
     if settings is None and station is None:
         isa_key = "isa" if isa_zones() is not None else f"no-isa-{datetime.datetime.now(datetime.timezone.utc):%Y%m%d%H}"
+        path = prebuilt_path(group, window)
+        if path.is_file():
+            pre = _prebuilt_payload(group, window, inputs_stamp(), isa_key, path.stat().st_mtime)
+            if pre is not False:
+                return pre
         return _payload(group, window, library_files(), isa_key)
     key = ("payload", group, window, tuple(sorted((settings or {}).items())), tuple(sorted((station or {}).items())))
     if st.session_state.get("custom_payload_key") != key:      # one custom payload per visitor
