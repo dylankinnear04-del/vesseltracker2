@@ -204,3 +204,9 @@ def test_isa_failure_remembered_for_a_while(monkeypatch):
         assert data.isa_zones() is None and calls["n"] == 2
     finally:
         data.isa_zones.clear()
+
+
+def test_library_stamp_includes_gfw_files():
+    """New GFW registry/events data (weekly enrich) must invalidate the cached console payload too."""
+    names = {p.split("/")[-1] for p, _ in data.library_files()}
+    assert {"gfw_events.csv", "gfw_vessel_info.csv"} <= names
