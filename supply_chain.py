@@ -69,14 +69,14 @@ def _hit(row, score: float, level: str) -> dict:
             "url": row["source_information_url"] or row["source_list_url"], "date": row["start_date"]}
 
 
-def screen(name: str, lst: pd.DataFrame, confirmed: set[str] | frozenset = frozenset()) -> list[dict]:
-    """List entries matching a company name: likely (exact, other name, or a truncated registry name's prefix),
-    possible (similar), confirmed (likely/possible on a list the team verified in entity_links.csv)."""
+def screen(name: str, lst: pd.DataFrame, confirmed: set[str] | frozenset = frozenset(),
+           truncated: bool = False) -> list[dict]:
+    """List entries matching a company name: likely (exact, other name, or - for a name the GFW registry cut
+    short, truncated=True - a prefix), possible (similar), confirmed (on a list the team verified)."""
     q = normalise(name)
     if len(q) < MIN_LEN or not len(lst):
         return []
     starts = {w[:3] for w in q.split()}
-    truncated = len(str(name).strip()) >= TRUNCATED
     hits = []
     for _, row in lst[lst["words"].map(lambda ws: bool(ws & starts))].iterrows():
         names = [n for n in [row["norm"], *row["norm_alts"]] if len(n) >= MIN_LEN and _markers(n) == _markers(q)]
@@ -156,7 +156,8 @@ def ship_chain(ship: dict, registry_owner: str, links: pd.DataFrame, lst: pd.Dat
     verified = [x.strip() for x in link["confirmed_lists"].split(";") if x.strip()] if link is not None else []
     hits, seen = [], set()
     for who, name in (("owner", owner), ("parent", parent), ("ultimate_owner", ultimate)):
-        for h in screen(name, lst, set(verified)) if name else []:
+        cut = who == "owner" and src == "GFW registry" and len(name or "") >= TRUNCATED
+        for h in screen(name, lst, set(verified), truncated=cut) if name else []:
             if (h["list"], h["entry"]) not in seen:
                 seen.add((h["list"], h["entry"]))
                 hits.append({**h, "matched": who})

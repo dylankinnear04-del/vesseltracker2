@@ -586,6 +586,34 @@ def survey_detector_extras(blob: dict, res: dict, lib: pd.DataFrame, vid: dict, 
             "analysisVessel": {vid_: str(vs) for (ds, vs), vid_ in vid.items()}}
 
 
+def supply_extras(blob: dict, lib: pd.DataFrame) -> dict:
+    """The supply chain for every ship and detection in the console data (supply_chain.py)."""
+    import supply_chain as sc
+    lst = sc.load_list(sc.LIST_FILE)
+    links = sc.load_links(sc.LINKS_FILE)
+    try:
+        reliance = pd.read_csv(sc.RELIANCE_FILE, dtype=str).fillna("")
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        reliance = pd.DataFrame(columns=["mineral"])
+    try:
+        ree = pd.read_csv(REE_FILE, dtype=str).fillna("")
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        ree = pd.DataFrame(columns=["name", "type", "operator", "country"])
+    info, _ = data.gfw_tables((data._stamp(data.GFW_INFO), data._stamp(data.GFW_EVENTS)))
+    owner_of = dict(zip(info["mmsi"].astype(str), info.get("owner", pd.Series([""] * len(info))).fillna(""))) if len(info) else {}
+    lib_of = {str(r["mmsi"]): r for _, r in lib.iterrows() if r.get("mmsi")} if len(lib) else {}
+    ships = {}
+    for v in blob["vessels"]:
+        row = lib_of.get(str(v.get("mmsi")))
+        ship = {"name": v["name"], "imo": v.get("imo") or (row.get("imo", "") if row is not None else ""),
+                "flag": v.get("country", ""), "operator": row.get("operator", "") if row is not None else ""}
+        ships[v["id"]] = sc.ship_chain(ship, owner_of.get(str(v.get("mmsi")), ""), links, lst)
+    areas = {e["id"]: sc.area_chain(e, reliance, ree) for e in blob["events"]}
+    dates = [d for d in lst["start_date"] if d] if len(lst) else []
+    return {"ships": ships, "areas": areas, "entities": sc.entities(ships, blob["events"], areas),
+            "listDate": max(dates)[:10] if dates else None}
+
+
 def add_extras(blob: dict, res: dict, lib: pd.DataFrame, station: dict | None = None,
                vid: dict | None = None, view: dict | None = None) -> dict:
     vid_by_mmsi = {str(v["mmsi"]): v["id"] for v in blob["vessels"]}
@@ -597,4 +625,5 @@ def add_extras(blob: dict, res: dict, lib: pd.DataFrame, station: dict | None = 
                            "stationCfg": station or data.default_station_settings()})
     if vid is not None:
         blob["extras"].update(survey_detector_extras(blob, res, lib, vid, view))
+        blob["extras"]["supply"] = supply_extras(blob, lib)
     return blob

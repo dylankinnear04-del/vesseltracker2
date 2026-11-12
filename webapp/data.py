@@ -648,7 +648,7 @@ def _payload(group: str, window: str, stamp: tuple, isa_key: str) -> tuple[str, 
 PREBUILT = HERE / "prebuilt"
 _STAMP_CODE = ["survey_pattern_detector.py", "intel.py", "stationkeeping.py", "track_events.py", "port_intel.py",
                "resource_context.py", "geo_lookup.py", "isa_contracts.py", "webapp/data.py", "webapp/seatrace_export.py",
-               "benchmarks/regression_results.json"]
+               "benchmarks/regression_results.json", "supply_chain.py", "library/screening_list.csv.gz"]
 
 
 def stamp_inputs() -> list[Path]:

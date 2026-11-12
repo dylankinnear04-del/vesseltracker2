@@ -35,7 +35,7 @@ def test_team_verified_list_is_confirmed(lst):
 
 
 def test_truncated_registry_name_prefix_matches(lst):
-    hits = sc.screen("CHINA NATIONAL OFFSHORE OIL CO", lst)
+    hits = sc.screen("CHINA NATIONAL OFFSHORE OIL CO", lst, truncated=True)
     assert "CMIC" in lists(hits) and all(h["level"] == "likely" for h in hits)
 
 
@@ -155,3 +155,14 @@ def test_entities_group_ships_by_parent(lst):
     assert top["ships"] == ["hysy719", "hysy720"] and top["events"] == ["E1", "E2"] and top["detections"] == 2
     assert top["minerals"] == ["cobalt", "nickel"] and top["best"] == "confirmed"
     assert any(r["name"] == "GERMANY GOVT BILDUNG" and r["kind"] == "owner" and r["best"] is None for r in rows)
+
+
+def test_long_catalog_name_is_not_treated_as_truncated():
+    lst = _list_of(("Chinese Academy of Sciences Changchun Institute of Optics", "Entity List (EL) - Bureau of Industry and Security"))
+    c = sc.ship_chain(ship("Ke Xue", operator="Chinese Academy of Sciences (reported)"), "", LINKS, lst)
+    assert not any(h["level"] == "likely" for h in c["hits"])
+
+
+def test_truncated_registry_owner_prefix_matches_in_chain(lst):
+    c = sc.ship_chain(ship(), "CHINA NATIONAL OFFSHORE OIL CO", LINKS, lst)
+    assert any(h["list"] == "CMIC" and h["level"] == "likely" for h in c["hits"])

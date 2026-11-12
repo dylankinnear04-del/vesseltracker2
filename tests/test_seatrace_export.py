@@ -219,3 +219,23 @@ def test_regression_file_is_current():
     assert stored["stamp"] == sx.regression_stamp()
     fresh = sx.compute_regression()
     assert fresh["rows"] == stored["rows"] and fresh["survey"] == stored["survey"]
+
+
+# ---------------------------------------------------------------- supply chain (supply_chain.py)
+def test_extras_supply(blob):
+    s = blob["extras"]["supply"]
+    assert set(s["ships"]) == {v["id"] for v in blob["vessels"]}
+    assert set(s["areas"]) == {e["id"] for e in blob["events"]}
+    assert s["entities"] and s["listDate"]
+    json.loads(sx.to_json(s), parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+    cosl = [c for c in s["ships"].values() if c["parent"] == "China National Offshore Oil Corporation"]
+    assert cosl and all(any(h["level"] == "confirmed" for h in c["hits"]) for c in cosl)
+
+
+def test_supply_without_list_file(monkeypatch, tmp_path):
+    import supply_chain
+    monkeypatch.setattr(supply_chain, "LIST_FILE", tmp_path / "missing.csv.gz")
+    blob = {"vessels": [{"id": "x", "name": "Ship", "mmsi": 123, "imo": None, "country": "China"}],
+            "events": [{"id": "E", "vessel": "x", "zone": None, "nearZone": None, "nearZoneKm": None, "center": [0.0, 0.0]}]}
+    s = sx.supply_extras(blob, data.library())
+    assert s["listDate"] is None and all(c["hits"] == [] for c in s["ships"].values())
