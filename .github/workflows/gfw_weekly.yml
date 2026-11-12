@@ -7,7 +7,8 @@
 #    the CSV).
 # 2. Every Chinese ship GFW classes as survey / seismic.
 # 3. Registry details and GFW events for every library ship (for the website's ship profiles).
-# 4. The SeaTrace console's data, built ahead of time (scripts/build_console_data.py, prebuilt/).
+# 4. The US Consolidated Screening List (companies and vessels) for the supply-chain card.
+# 5. The SeaTrace console's data, built ahead of time (scripts/build_console_data.py, prebuilt/).
 #
 # When GFW's track service is down, the pulls keep what downloaded, record the outage in
 # library/gfw_status.json (the website shows it) and show a warning; the run only fails for problems
@@ -85,6 +86,11 @@ jobs:
           GFW_TOKEN: ${{ secrets.GFW_TOKEN }}
         run: python gfw_fetch.py --enrich --months "$MONTHS"
 
+      - name: Screening list (US Consolidated Screening List, for the supply chain)
+        id: screening
+        continue-on-error: true
+        run: python gfw_fetch.py --screening
+
       - name: Build the console data (SeaTrace)
         id: console
         continue-on-error: true
@@ -98,6 +104,7 @@ jobs:
           git add library/gfw_vessel_info.csv library/gfw_events.csv 2>/dev/null || true
           git add prebuilt 2>/dev/null || true
           git add library/gfw_status.json 2>/dev/null || true
+          git add library/screening_list.csv.gz 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No new positions this week."
             exit 0
@@ -107,7 +114,7 @@ jobs:
           git push
 
       - name: Report a failed pull
-        if: steps.mining.outcome == 'failure' || steps.china.outcome == 'failure' || steps.enrich.outcome == 'failure' || steps.console.outcome == 'failure'
+        if: steps.mining.outcome == 'failure' || steps.china.outcome == 'failure' || steps.enrich.outcome == 'failure' || steps.screening.outcome == 'failure' || steps.console.outcome == 'failure'
         run: |
-          echo "::error::A step failed (deep-sea mining: ${{ steps.mining.outcome }}, China: ${{ steps.china.outcome }}, registry/events: ${{ steps.enrich.outcome }}, console data: ${{ steps.console.outcome }}). Data from the other steps was still committed."
+          echo "::error::A step failed (deep-sea mining: ${{ steps.mining.outcome }}, China: ${{ steps.china.outcome }}, registry/events: ${{ steps.enrich.outcome }}, screening list: ${{ steps.screening.outcome }}, console data: ${{ steps.console.outcome }}). Data from the other steps was still committed."
           exit 1
