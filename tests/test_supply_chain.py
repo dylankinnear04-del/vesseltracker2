@@ -80,3 +80,78 @@ def test_names_differing_by_an_ordinal_do_not_match():
                     "Military End User (MEU) List - Bureau of Industry and Security"))
     assert sc.screen("Third Institute of Oceanography, Ministry of Natural Resources", lst) == []
     assert sc.screen("Second Institute of Oceanography, Ministry of Natural Resources", lst)[0]["level"] == "likely"
+
+
+# ---------------------------------------------------------------- chains (Task 3)
+import pandas as pd  # noqa: E402
+
+LINKS = sc.load_links(Path(__file__).resolve().parents[1] / "reference_data" / "entity_links.csv")
+RELIANCE = pd.read_csv(Path(__file__).resolve().parents[1] / "reference_data" / "mineral_import_reliance.csv", dtype=str)
+REE = pd.read_csv(Path(__file__).resolve().parents[1] / "reference_data" / "ree_sites.csv", dtype=str)
+
+
+def ship(name="Hai Yang Shi You 719", operator="", imo="", flag="China"):
+    return {"name": name, "imo": imo, "flag": flag, "operator": operator}
+
+
+def test_owner_with_parent_on_lists_is_confirmed(lst):
+    c = sc.ship_chain(ship(), "CHINA OILFIELD SERVICES", LINKS, lst)
+    assert c["owner_source"] == "GFW registry" and c["parent"] == "China National Offshore Oil Corporation"
+    assert c["state_owned"] is True and c["country"] == "CHN"
+    assert any(h["list"] == "CMIC" and h["level"] == "confirmed" and h["matched"] == "parent" for h in c["hits"])
+    assert "DoD 1260H" in c["verified_lists"]
+
+
+def test_catalog_operator_used_when_registry_has_no_owner(lst):
+    c = sc.ship_chain(ship("Gelendzhik", operator="Yuzhmorgeologiya JSC", flag="Russia"), "", LINKS, lst)
+    assert c["owner_source"] == "catalog" and c["parent"] == "JSC Rosgeologia"
+    assert any(h["list"] == "SDN" and h["matched"] == "owner" for h in c["hits"])
+
+
+def test_unknown_owner_is_said(lst):
+    c = sc.ship_chain(ship("Some Ship"), "", LINKS, lst)
+    assert c["owner"] is None and any("Owner unknown" in n for n in c["notes"]) and c["hits"] == []
+
+
+def test_ship_name_checked_against_listed_vessels_only(lst):
+    c = sc.ship_chain(ship("Yuzhmorgeologiya", flag="Russia"), "", LINKS, lst)
+    assert [h["list"] for h in c["ship_hits"]] == ["SDN"]
+    c2 = sc.ship_chain(ship("CNOOC Limited"), "", LINKS, lst)       # a company name used as a ship name
+    assert c2["ship_hits"] == []
+
+
+def test_area_inside_contract():
+    a = sc.area_chain({"zone": "COMRAPMN1", "nearZone": None, "nearZoneKm": None, "center": [10.0, -150.0]}, RELIANCE, REE)
+    assert a["basis"] == "inside" and a["sponsor"] == "China" and "COMRA" in a["contractor"]
+    assert [m["name"] for m in a["minerals"]] == ["nickel", "cobalt", "copper", "manganese"]
+    assert next(m for m in a["minerals"] if m["name"] == "manganese")["reliance_pct"] == "100"
+
+
+def test_area_near_contract_within_300_km():
+    a = sc.area_chain({"zone": None, "nearZone": "COMRACRFC1", "nearZoneKm": 120.0, "center": [20.0, 155.0]}, RELIANCE, REE)
+    assert a["basis"] == "near" and "rare earths" in [m["name"] for m in a["minerals"]] and a["processing"]
+
+
+def test_area_far_from_contract_uses_region():
+    a = sc.area_chain({"zone": None, "nearZone": "COMRAPMN1", "nearZoneKm": 450.0, "center": [12.0, -140.0]}, RELIANCE, REE)
+    assert a["basis"] == "region" and a["contract"] is None and "Clarion" in a["region"]
+    assert {"nickel", "cobalt"} <= {m["name"] for m in a["minerals"]}
+
+
+def test_area_outside_everything():
+    a = sc.area_chain({"zone": None, "nearZone": None, "nearZoneKm": None, "center": [60.0, -30.0]}, RELIANCE, REE)
+    assert a["contract"] is None and a["basis"] is None and a["minerals"] == [] and a["notes"]
+
+
+def test_entities_group_ships_by_parent(lst):
+    ships = {"hysy719": sc.ship_chain(ship(), "CHINA OILFIELD SERVICES", LINKS, lst),
+             "hysy720": sc.ship_chain(ship("Haiyangshiyou720"), "CHINA OILFIELD SERVICES", LINKS, lst),
+             "other": sc.ship_chain(ship("Sonne", flag="Germany"), "GERMANY GOVT BILDUNG", LINKS, lst)}
+    events = [{"id": "E1", "vessel": "hysy719"}, {"id": "E2", "vessel": "hysy720"}, {"id": "E3", "vessel": "other"}]
+    areas = {"E1": {"minerals": [{"name": "nickel"}]}, "E2": {"minerals": [{"name": "cobalt"}]}, "E3": {"minerals": []}}
+    rows = sc.entities(ships, events, areas)
+    top = rows[0]
+    assert top["name"] == "China National Offshore Oil Corporation" and top["kind"] == "parent"
+    assert top["ships"] == ["hysy719", "hysy720"] and top["events"] == ["E1", "E2"] and top["detections"] == 2
+    assert top["minerals"] == ["cobalt", "nickel"] and top["best"] == "confirmed"
+    assert any(r["name"] == "GERMANY GOVT BILDUNG" and r["kind"] == "owner" and r["best"] is None for r in rows)

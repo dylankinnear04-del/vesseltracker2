@@ -95,3 +95,165 @@ def screen(name: str, lst: pd.DataFrame, confirmed: set[str] | frozenset = froze
         hits.append(hit)
     order = {"confirmed": 0, "likely": 1, "possible": 2}
     return sorted(hits, key=lambda h: (order[h["level"]], -h["score"], h["list"], h["entry"]))
+
+
+# ============================================================ ship -> owner -> parent -> lists
+LINK_COLUMNS = ["match_name", "parent", "ultimate_owner", "state_owned", "country", "confirmed_lists", "note", "source"]
+
+
+def load_links(path: Path = LINKS_FILE) -> pd.DataFrame:
+    """The team's owner -> parent links; rows without a match_name are skipped (and reported)."""
+    try:
+        df = pd.read_csv(path, dtype=str).fillna("")
+    except (FileNotFoundError, OSError, ValueError, pd.errors.EmptyDataError):
+        df = pd.DataFrame(columns=LINK_COLUMNS)
+    df = df.reindex(columns=LINK_COLUMNS).fillna("")
+    bad = df["match_name"].str.strip() == ""
+    if bad.any():
+        print(f"entity_links.csv: skipped {int(bad.sum())} row(s) without a match_name")
+    df = df[~bad].copy()
+    df["norm"] = df["match_name"].map(normalise)
+    return df.reset_index(drop=True)
+
+
+def _link_for(owner: str, links: pd.DataFrame):
+    q = normalise(owner)
+    if not q or not len(links):
+        return None
+    for _, r in links.iterrows():
+        n = r["norm"]
+        if q == n or (min(len(q), len(n)) >= MIN_PREFIX and (q.startswith(n) or n.startswith(q))):
+            return r
+    return None
+
+
+def _vessel_hits(ship: dict, lst: pd.DataFrame) -> list[dict]:
+    """Listed vessels with this ship's IMO number or exactly its name (ship names never match companies)."""
+    if not len(lst):
+        return []
+    v = lst[lst["type"] == "Vessel"]
+    imo = re.sub(r"\D", "", str(ship.get("imo") or ""))
+    q = normalise(ship.get("name", ""))
+    out = []
+    for _, row in v.iterrows():
+        if (len(imo) == 7 and f"IMO {imo}" in row["ids"]) or (len(q) >= MIN_LEN and q in [row["norm"], *row["norm_alts"]]):
+            out.append(_hit(row, 1.0, "likely"))
+    return out
+
+
+def ship_chain(ship: dict, registry_owner: str, links: pd.DataFrame, lst: pd.DataFrame) -> dict:
+    """The ownership half of the chain for one ship (ship: name, imo, flag, operator)."""
+    owner, src, notes = None, None, []
+    if str(registry_owner or "").strip():
+        owner, src = str(registry_owner).strip(), "GFW registry"
+    elif str(ship.get("operator") or "").strip():
+        owner, src = str(ship["operator"]).strip(), "catalog"
+    else:
+        notes.append("Owner unknown: no owner in the GFW registry or the ship catalog")
+    link = _link_for(owner, links) if owner else None
+    parent = (link["parent"] or None) if link is not None else None
+    ultimate = (link["ultimate_owner"] or None) if link is not None else None
+    verified = [x.strip() for x in link["confirmed_lists"].split(";") if x.strip()] if link is not None else []
+    hits, seen = [], set()
+    for who, name in (("owner", owner), ("parent", parent), ("ultimate_owner", ultimate)):
+        for h in screen(name, lst, set(verified)) if name else []:
+            if (h["list"], h["entry"]) not in seen:
+                seen.add((h["list"], h["entry"]))
+                hits.append({**h, "matched": who})
+    state = {"yes": True, "no": False}.get(link["state_owned"].strip().lower()) if link is not None else None
+    return {"ship_hits": _vessel_hits(ship, lst), "owner": owner, "owner_source": src, "parent": parent,
+            "ultimate_owner": ultimate, "state_owned": state, "country": (link["country"] or None) if link is not None else None,
+            "verified_lists": verified, "hits": hits, "notes": notes,
+            "link_note": (link["note"] or None) if link is not None else None,
+            "link_source": (link["source"] or None) if link is not None else None}
+
+
+# ============================================================ area -> contract -> minerals -> processing
+NEAR_KM = 300.0
+MINERALS = {"nodules": ["nickel", "cobalt", "copper", "manganese"],
+            "sulphides": ["copper", "zinc", "gold", "silver"],
+            "crusts": ["cobalt", "manganese", "nickel", "tellurium", "platinum", "rare earths"]}
+CODES = {"Ni": "nickel", "Co": "cobalt", "Cu": "copper", "Mn": "manganese", "REE": "rare earths", "Zn": "zinc",
+         "Au": "gold", "Ag": "silver", "Te": "tellurium", "Pt": "platinum"}
+
+
+def _mineral_rows(names: list[str], reliance: pd.DataFrame) -> list[dict]:
+    by = {str(r["mineral"]): r for _, r in reliance.fillna("").iterrows()}
+    out = []
+    for n in names:
+        r = by.get(n)
+        out.append({"name": n, "reliance_pct": (r["net_import_reliance_pct"] if r is not None else "") or None,
+                    "top_sources": (r["top_sources"] if r is not None else "") or None,
+                    "critical": (r["us_critical_mineral"] == "yes") if r is not None else None,
+                    "year": (r["year"] if r is not None else "") or None})
+    return out
+
+
+def area_chain(event: dict, reliance: pd.DataFrame, ree_sites: pd.DataFrame) -> dict:
+    """The resource half of the chain for one detection (event: zone, nearZone, nearZoneKm, center)."""
+    from isa_contracts import ISA_CONTRACTORS, mineral_of
+    import resource_context
+    cid, basis, region, names, notes = None, None, None, [], []
+    if event.get("zone"):
+        cid, basis = event["zone"], "inside"
+    elif event.get("nearZone") and event.get("nearZoneKm") is not None and float(event["nearZoneKm"]) <= NEAR_KM:
+        cid, basis = event["nearZone"], "near"
+    if cid:
+        names = MINERALS[mineral_of(cid)]
+    else:
+        lat, lon = event.get("center") or (None, None)
+        hits = resource_context.regions_at(float(lat), float(lon)) if lat is not None else pd.DataFrame()
+        if len(hits):
+            r = hits.iloc[0]
+            region, basis = str(r["name"]), "region"
+            names = list(dict.fromkeys(CODES[c] for c in re.findall(r"\b(Ni|Co|Cu|Mn|REE|Zn|Au|Ag|Te|Pt)\b", str(r["commodities"]))))
+        else:
+            notes.append("Not in or within 300 km of an ISA contract, and outside the known seabed resource regions")
+    contractor, sponsor = ISA_CONTRACTORS.get(cid, (cid, "")) if cid else (None, None)
+    proc = []
+    if "rare earths" in names and len(ree_sites):
+        p = ree_sites[ree_sites["type"] == "processing"]
+        proc = [{"site": r["name"], "operator": r["operator"], "country": r["country"]} for _, r in p.iterrows()]
+    return {"contract": cid, "contractor": contractor, "sponsor": sponsor or None, "basis": basis, "region": region,
+            "minerals": _mineral_rows(names, reliance), "processing": proc, "notes": notes}
+
+
+# ============================================================ across detections
+LEVEL_ORDER = {"confirmed": 0, "likely": 1, "possible": 2, None: 3}
+
+
+def _best(chain: dict):
+    if chain["verified_lists"]:
+        return "confirmed"
+    levels = [h["level"] for h in chain["hits"] + chain["ship_hits"]]
+    return min(levels, key=lambda lv: LEVEL_ORDER[lv]) if levels else None
+
+
+def entities(ships: dict[str, dict], events: list[dict], areas: dict[str, dict]) -> list[dict]:
+    """One row per parent company (or owner when there is no known parent), with its ships, detections,
+    restricted lists and the minerals of the areas it surveyed. Listed entities first, then by detections."""
+    rows = {}
+    for vid, c in ships.items():
+        name = c["parent"] or c["owner"]
+        if not name:
+            continue
+        r = rows.setdefault(name, {"name": name, "kind": "parent" if c["parent"] else "owner", "country": c["country"],
+                                   "state_owned": c["state_owned"], "ultimate_owner": c["ultimate_owner"],
+                                   "ships": [], "events": [], "lists": set(), "minerals": set(), "best": None})
+        r["ships"].append(vid)
+        r["lists"] |= {h["list"] for h in c["hits"] + c["ship_hits"]} | set(c["verified_lists"])
+        b = _best(c)
+        if LEVEL_ORDER[b] < LEVEL_ORDER[r["best"]]:
+            r["best"] = b
+    owner_of = {vid: (c["parent"] or c["owner"]) for vid, c in ships.items()}
+    for e in events:
+        name = owner_of.get(e["vessel"])
+        if name in rows:
+            rows[name]["events"].append(e["id"])
+            rows[name]["minerals"] |= {m["name"] for m in (areas.get(e["id"]) or {}).get("minerals", [])}
+    out = []
+    for r in rows.values():
+        r.update(ships=sorted(r["ships"]), events=sorted(r["events"]), lists=sorted(r["lists"]),
+                 minerals=sorted(r["minerals"]), detections=len(r["events"]))
+        out.append(r)
+    return sorted(out, key=lambda r: (LEVEL_ORDER[r["best"]], -r["detections"], r["name"]))
