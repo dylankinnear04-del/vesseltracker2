@@ -29,8 +29,12 @@ DRIVER = """<script>
     click('btn-valid'); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
     click('btn-method'); document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
     click('play'); click('play'); click('season'); click('live');
+    click('tab-entities'); var r0=document.querySelector('.stx-ent'); if(r0){ r0.click(); var b0=r0.querySelector('[data-vid]'); if(b0) b0.click(); }
+    click('tab-fleet');
+    var A=window.SEATRACE; if(A && A.D.events.length){ A.focusEvent(A.D.events[0].id, false); }
+    out.entities=document.querySelectorAll('.stx-ent').length;
   }catch(e){window.__errors.push('driver: '+e.message);}
-  setTimeout(function(){ out.ok=window.__errors.length===0; document.title=JSON.stringify(out); },1500);
+  setTimeout(function(){ out.supply=!!document.querySelector('.stx-supply'); out.ok=window.__errors.length===0; document.title=JSON.stringify(out); },1500);
 })();
 </script>"""
 

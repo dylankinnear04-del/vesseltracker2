@@ -123,3 +123,9 @@ def test_console_notices_isa_and_empty_season(monkeypatch):
     monkeypatch.setattr(data, "isa_zones", lambda: None)
     html = _console_html(open_page("views/console.py"))
     assert "ISA contract areas unavailable" in html and "No detections in this season" in html
+
+
+def test_console_has_supply_chain_code():
+    from webapp import console
+    html = console.assemble('{"events":[],"vessels":[]}')
+    assert "stx-supply" in html and "tab-entities" in html and "ent-csv" in html
