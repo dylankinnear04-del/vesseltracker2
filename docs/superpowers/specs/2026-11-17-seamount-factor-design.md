@@ -52,6 +52,8 @@ Approaches considered:
 - summit = shallowest grid depth within 25 km of the detection centre; base = the 25th-percentile depth in
   the ring 25–75 km out; rise = summit − base.
 - **Seamount:** rise ≥ 1,000 m and summit deeper than 200 m (not an island or shelf).
+  Also isolated: at most 10 % of the ring is shallower than the summit (added during the build: without it,
+  continental slopes and trench walls passed, since they have a deep side and a shallow side).
   `crust_depth` = the seamount's slopes cross the cobalt-crust window, 800–2,500 m (summit shallower than
   2,500 m and base deeper than 800 m). Changed after checking the grid: the Emperor Seamount summit is 496 m,
   so a summit-only test would miss the crusts on its flanks.

@@ -36,6 +36,18 @@ DRIVER = """<script>
     if(!out.panOk) window.__errors.push('pan west blocked');
     if(!(out.mirror>0)) window.__errors.push('no world copies of ships/tracks: '+out.mirror);
     var raw=JSON.parse(document.getElementById('seatrace-data').textContent); out.events=raw.events.length; out.vessels=raw.vessels.length;
+    /* seamounts and ridges: raise resource context only in water deeper than 200 m and never over an ISA contract value */
+    var EV=(window.SEATRACE&&window.SEATRACE.D.events)||[], res=function(e){return e.pri.filter(function(c){return c.key==='resource';})[0];};
+    var onSf=EV.filter(function(e){return e.seafloor&&e.seafloor.kind&&e.depth!=null&&e.depth<-200&&!e.zone;});
+    out.seafloorEvents=onSf.length;
+    out.rawSeafloor=raw.events.filter(function(r){return r.seafloor&&r.seafloor.kind&&r.depth!=null&&r.depth<-200&&!r.zone;}).length;
+    if(out.rawSeafloor!==out.seafloorEvents) window.__errors.push('seafloor not carried into the engine: '+out.seafloorEvents+' of '+out.rawSeafloor);
+    out.seamountOk=onSf.every(function(e){var c=res(e);return c.v>=0.6&&/seamount|ridge/i.test(c.detail);});
+    out.shallowOk=EV.filter(function(e){return !(e.depth!=null&&e.depth<-200);}).every(function(e){return !/seamount|ridge/i.test(res(e).detail);});
+    out.zoneOk=EV.filter(function(e){return e.zone;}).every(function(e){return Math.abs(res(e).v-ENGINE.ZONE_TYPES[e.zone.type].w)<1e-9;});
+    if(!out.seamountOk) window.__errors.push('seamount detection not scored as one');
+    if(!out.shallowOk) window.__errors.push('seamount rule applied in shallow water');
+    if(!out.zoneOk) window.__errors.push('ISA contract value changed by the seafloor rule');
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
     ['vw-gallery','vw-timeline','vw-map','tab-alerts','tab-fleet'].forEach(click);

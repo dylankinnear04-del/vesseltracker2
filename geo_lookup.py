@@ -158,6 +158,7 @@ def depth_m(lat: float, lon: float) -> float | None:
 SEAMOUNT_INNER_KM, SEAMOUNT_OUTER_KM = 25.0, 75.0
 SEAMOUNT_RISE_M, SEAMOUNT_SUMMIT_M = 1000, -200      # rises ≥ 1 km; summit below 200 m (not an island or shelf)
 CRUST_TOP_M, CRUST_BOTTOM_M = -800, -2500            # cobalt-rich crust window on seamount slopes
+SEAMOUNT_MAX_HIGHER = 0.10      # a seamount stands above its surroundings: at most 10 % of the ring is shallower
 KM_PER_DEG = 111.2
 
 
@@ -165,7 +166,8 @@ def seafloor_at(lat: float, lon: float) -> dict | None:
     """Relief under a detection: is it on a seamount or a mid-ocean ridge?
 
     summit = shallowest cell within 25 km; base = 25th-percentile cell 25-75 km out; rise = summit - base.
-    Seamount: rise >= 1000 m and summit deeper than 200 m. Ridge: the same, inside a seafloor-massive-sulphide
+    Seamount: rise >= 1000 m, summit deeper than 200 m, and no more than 10 % of the ring shallower than the
+    summit (a slope has a shallow side; a seamount does not). Ridge: the same, inside a seafloor-massive-sulphide
     region (reference_data/seabed_resources.csv). crust_depth: the slopes cross 800-2500 m."""
     d = _depth()
     if d is None:
@@ -185,7 +187,8 @@ def seafloor_at(lat: float, lon: float) -> dict | None:
         return None
     summit, base = float(inner.max()), float(np.percentile(ring, 25))
     rise = summit - base
-    raised = rise >= SEAMOUNT_RISE_M and summit < SEAMOUNT_SUMMIT_M
+    isolated = float((ring > summit).mean()) <= SEAMOUNT_MAX_HIGHER     # rules out continental slopes and trench walls
+    raised = rise >= SEAMOUNT_RISE_M and summit < SEAMOUNT_SUMMIT_M and isolated
     kind = None
     if raised:
         import resource_context                      # here, not at the top: resource_context is heavier

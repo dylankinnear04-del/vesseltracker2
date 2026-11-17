@@ -95,3 +95,13 @@ def test_seafloor_without_grid(monkeypatch, tmp_path):
         assert g.seafloor_at(43.388, 170.05) is None
     finally:
         g._depth.cache_clear()
+
+
+def test_seafloor_continental_slope_is_not_a_seamount():
+    # Gulf of Mexico slope, Irish margin, Hispaniola trench wall: steep, but shallower water lies to one side
+    for lat, lon in ((27.16, -90.23), (51.07, -14.76), (19.1175, -68.385)):
+        assert g.seafloor_at(lat, lon)["kind"] is None, (lat, lon)
+
+
+def test_seafloor_magellan_seamounts_still_found():
+    assert g.seafloor_at(17.98, 152.01)["kind"] == "seamount"
