@@ -48,6 +48,12 @@ DRIVER = """<script>
     if(!out.seamountOk) window.__errors.push('seamount detection not scored as one');
     if(!out.shallowOk) window.__errors.push('seamount rule applied in shallow water');
     if(!out.zoneOk) window.__errors.push('ISA contract value changed by the seafloor rule');
+    /* Seafloor (GEBCO) layer: listed, off at start, toggles a WMS layer from wms.gebco.net */
+    if(M){ var sfb=document.querySelector('[data-layer="seafloor"]'), wms=function(){var n=0;M.eachLayer(function(l){if(l._url&&/wms\\.gebco\\.net/.test(l._url))n++;});return n;};
+      var off0=wms()===0; if(sfb) sfb.click();
+      setTimeout(function(){ var on1=wms()===1, b2=document.querySelector('[data-layer="seafloor"]'); if(b2) b2.click();
+        setTimeout(function(){ var off2=wms()===0; out.seafloorLayer=!!sfb&&off0&&on1&&off2;
+          if(!out.seafloorLayer) window.__errors.push('seafloor layer: '+[!!sfb,off0,on1,off2].join(',')); },60); },60); }
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
     ['vw-gallery','vw-timeline','vw-map','tab-alerts','tab-fleet'].forEach(click);

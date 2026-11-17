@@ -97,12 +97,16 @@
 
   /* ---------- extra layers ---------- */
   var gRoutes = L.layerGroup(), gPred = L.layerGroup(), gRegions = L.layerGroup();
+  /* Seafloor shading from GEBCO's public WMS, under the land; Leaflet repeats tiles round the globe by itself */
+  map.createPane('seafloor').style.zIndex = 200; map.getPane('seafloor').style.pointerEvents = 'none';
+  var gSeafloor = L.tileLayer.wms('https://wms.gebco.net/mapserv', { layers: 'GEBCO_LATEST', format: 'image/png', pane: 'seafloor', opacity: 0.85, attribution: 'GEBCO Compilation Group, GEBCO Grid' });
   var EXTRA_LAYERS = [['routes', 'Port routes (selected survey)', 'dash:#5cc8ff'], ['pred', 'Predicted next lines', 'dash:#ff7ec3'],
-                      ['regions', 'Seabed resource regions', 'linear-gradient(90deg,#1e88e5,#d81b60)']];
+                      ['regions', 'Seabed resource regions', 'linear-gradient(90deg,#1e88e5,#d81b60)'],
+                      ['seafloor', 'Seafloor (GEBCO)', 'linear-gradient(90deg,#0b2a4a,#3a7bb8,#a8d1e8)']];
   (function layers() {
     var at = A.LAYERS.findIndex(function (l) { return l[0] === 'grat'; });
-    A.LAYERS.splice(at < 0 ? A.LAYERS.length : at, 0, EXTRA_LAYERS[0], EXTRA_LAYERS[1], EXTRA_LAYERS[2]);
-    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false;
+    A.LAYERS.splice.apply(A.LAYERS, [at < 0 ? A.LAYERS.length : at, 0].concat(EXTRA_LAYERS));
+    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false; S.layers.seafloor = false;
     A.renderLayers();
     (X.pred || []).forEach(function (p) {
       OFFS.forEach(function (o) {
@@ -131,14 +135,14 @@
     });
   }
   function applyLayers() {
-    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions']].forEach(function (x) {
+    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions'], [gSeafloor, 'seafloor']].forEach(function (x) {
       if (S.layers[x[1]]) { if (!map.hasLayer(x[0])) x[0].addTo(map); } else map.removeLayer(x[0]);
     });
   }
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.getAttribute) return;
     var k = t.getAttribute('data-layer');
-    if (k === 'routes' || k === 'pred' || k === 'regions') setTimeout(applyLayers, 0);
+    if (k === 'routes' || k === 'pred' || k === 'regions' || k === 'seafloor') setTimeout(applyLayers, 0);
   });
 
   /* ---------- assessment pane: likely target, ports, copy link ---------- */
