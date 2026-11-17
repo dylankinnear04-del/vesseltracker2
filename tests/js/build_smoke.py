@@ -36,6 +36,24 @@ DRIVER = """<script>
     if(!out.panOk) window.__errors.push('pan west blocked');
     if(!(out.mirror>0)) window.__errors.push('no world copies of ships/tracks: '+out.mirror);
     var raw=JSON.parse(document.getElementById('seatrace-data').textContent); out.events=raw.events.length; out.vessels=raw.vessels.length;
+    /* seamounts and ridges: raise resource context only in water deeper than 200 m and never over an ISA contract value */
+    var EV=(window.SEATRACE&&window.SEATRACE.D.events)||[], res=function(e){return e.pri.filter(function(c){return c.key==='resource';})[0];};
+    var onSf=EV.filter(function(e){return e.seafloor&&e.seafloor.kind&&e.depth!=null&&e.depth<-200&&!e.zone;});
+    out.seafloorEvents=onSf.length;
+    out.rawSeafloor=raw.events.filter(function(r){return r.seafloor&&r.seafloor.kind&&r.depth!=null&&r.depth<-200&&!r.zone;}).length;
+    if(out.rawSeafloor!==out.seafloorEvents) window.__errors.push('seafloor not carried into the engine: '+out.seafloorEvents+' of '+out.rawSeafloor);
+    out.seamountOk=onSf.every(function(e){var c=res(e);return c.v>=0.6&&/seamount|ridge/i.test(c.detail);});
+    out.shallowOk=EV.filter(function(e){return !(e.depth!=null&&e.depth<-200);}).every(function(e){return !/seamount|ridge/i.test(res(e).detail);});
+    out.zoneOk=EV.filter(function(e){return e.zone;}).every(function(e){return Math.abs(res(e).v-ENGINE.ZONE_TYPES[e.zone.type].w)<1e-9;});
+    if(!out.seamountOk) window.__errors.push('seamount detection not scored as one');
+    if(!out.shallowOk) window.__errors.push('seamount rule applied in shallow water');
+    if(!out.zoneOk) window.__errors.push('ISA contract value changed by the seafloor rule');
+    /* Seafloor (GEBCO) layer: listed, off at start, toggles a WMS layer from wms.gebco.net */
+    if(M){ var sfb=document.querySelector('[data-layer="seafloor"]'), wms=function(){var n=0;M.eachLayer(function(l){if(l._url&&/wms\\.gebco\\.net/.test(l._url))n++;});return n;};
+      var off0=wms()===0; if(sfb) sfb.click();
+      setTimeout(function(){ var on1=wms()===1, b2=document.querySelector('[data-layer="seafloor"]'); if(b2) b2.click();
+        setTimeout(function(){ var off2=wms()===0; out.seafloorLayer=!!sfb&&off0&&on1&&off2;
+          if(!out.seafloorLayer) window.__errors.push('seafloor layer: '+[!!sfb,off0,on1,off2].join(',')); },60); },60); }
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
     ['vw-gallery','vw-timeline','vw-map','tab-alerts','tab-fleet'].forEach(click);
@@ -45,6 +63,12 @@ DRIVER = """<script>
     click('tab-entities'); var r0=document.querySelector('.stx-ent'); if(r0){ r0.click(); var b0=r0.querySelector('[data-vid]'); if(b0) b0.click(); }
     click('tab-fleet');
     var A=window.SEATRACE; if(A && A.D.events.length){ A.focusEvent(A.D.events[0].id, false); }
+    /* SEAMOUNT / RIDGE tags: one per listed alert on a seamount or ridge, and in the detection panel header */
+    if(A){ click('tab-alerts'); var listed=[].slice.call(document.querySelectorAll('.alert[data-ev]')).map(function(b){return b.getAttribute('data-ev');});
+      var want=listed.filter(function(id){var e=A.D.events.filter(function(x){return x.id===id;})[0];return e&&ENGINE.seafloorOn(e);});
+      var got=document.querySelectorAll('.alert .sftag').length, sfe=want.length?A.D.events.filter(function(x){return x.id===want[0];})[0]:null, head=true;
+      if(sfe){ A.focusEvent(sfe.id,false); var t=document.querySelector('.evhead .sftag'); head=!!t&&t.title===ENGINE.seafloorText(sfe.seafloor); }
+      out.tagOk=got===want.length&&head; if(!out.tagOk) window.__errors.push('seafloor tags: '+got+' of '+want.length+', header '+head); click('tab-fleet'); }
     out.entities=document.querySelectorAll('.stx-ent').length;
   }catch(e){window.__errors.push('driver: '+e.message);}
   setTimeout(function(){ out.supply=!!document.querySelector('.stx-supply'); out.ok=window.__errors.length===0; document.title=JSON.stringify(out); },1500);

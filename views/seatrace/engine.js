@@ -9,6 +9,14 @@ var ENGINE = (function () {
   function clamp(x, lo, hi) { lo = lo === undefined ? 0 : lo; hi = hi === undefined ? 1 : hi; return Math.max(lo, Math.min(hi, x)); }
   function compass(deg) { var n = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']; return n[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16]; }
   function fmtDur(h) { return h < 48 ? Math.round(h) + ' h' : (h / 24).toFixed(1) + ' d'; }
+  /* Survey Detector: seamount or mid-ocean ridge under a detection in water deeper than 200 m (geo_lookup.seafloor_at) */
+  function sfOn(e) { var s = e.seafloor; return s && s.kind && e.depth !== null && e.depth !== undefined && e.depth < -200 ? s : null; }
+  function mM(x) { return Math.round(Math.abs(x)).toLocaleString() + ' m'; }
+  function seafloorText(s) {
+    if (!s || !s.kind) return '';
+    return s.kind === 'ridge' ? 'On a mid-ocean ridge: rises ' + mM(s.rise_m) + ' above the surrounding floor'
+      : 'On a seamount: summit ' + mM(s.summit_m) + ', rises ' + mM(s.rise_m) + ' above the surrounding floor' + (s.crust_depth ? ' · cobalt-crust depth' : '');
+  }
   function f1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
 
   var T_START = Date.parse(RAW.T0), AS_OF = T_START + RAW.AS_OF * H;
@@ -122,7 +130,7 @@ var ENGINE = (function () {
     var events = [];
     RAW.events.forEach(function (r) {
       var v = byId[r.vessel]; if (!v) return;
-      var e = { rid: r.id, vessel: v.id, model: r.model, t0: tm(r.t0), t1: tm(r.t1), center: r.center, eez: r.eez, depth: r.depth, boundary: r.boundary, zone: (r.zone && ZONE[r.zone]) || null, nearZone: (r.nearZone && ZONE[r.nearZone]) || null, nearZoneKm: r.nearZoneKm, foreign: r.foreign, nearestPort: r.nearestPort, mntKm: r.mntKm };
+      var e = { rid: r.id, vessel: v.id, model: r.model, t0: tm(r.t0), t1: tm(r.t1), center: r.center, eez: r.eez, depth: r.depth, seafloor: r.seafloor || null, boundary: r.boundary, zone: (r.zone && ZONE[r.zone]) || null, nearZone: (r.nearZone && ZONE[r.nearZone]) || null, nearZoneKm: r.nearZoneKm, foreign: r.foreign, nearestPort: r.nearestPort, mntKm: r.mntKm };
       e.active = e.t1 >= AS_OF - 12 * H;
       if (r.L) {
         var L = r.L; L.lines.forEach(function (l) { l.t0 = tm(l.t0); l.t1 = tm(l.t1); }); e.L = L;
@@ -172,6 +180,12 @@ var ENGINE = (function () {
       else if (e.mntKm < 300) { fRes = 0.8; resD = Math.round(e.mntKm) + ' km from Minamitorishima (rare-earth mud test area)'; }
       else if (e.nearZone && e.nearZoneKm != null && e.nearZoneKm < 300) {   /* Survey Detector: no ISA areas → no zone */ fRes = 0.5 * ZONE_TYPES[e.nearZone.type].w; resD = Math.round(e.nearZoneKm) + ' km from ISA area ' + e.nearZone.contractor; }
       else { fRes = 0.1; resD = 'No ISA area or rare-earth site within 300 km'; }
+      var sf = sfOn(e);
+      if (sf) {
+        var sv = sf.kind === 'ridge' ? 0.6 : sf.crust_depth ? 0.75 : 0.6;
+        if (!z && sv > fRes) { resD = seafloorText(sf) + (fRes > 0.1 ? ' · ' + resD : ''); fRes = sv; }
+        else resD += ' · ' + seafloorText(sf);          /* an ISA contract value stands */
+      }
       var fStr, strD, ez = e.eez, bd = e.boundary;
       if (ez && ez.sov.indexOf(v.country) < 0) { fStr = 1; strD = 'Inside foreign EEZ: ' + ez.name; }
       else if (ez && ez.type !== '200NM') { fStr = 0.75; strD = 'Inside ' + ez.name; }
@@ -235,6 +249,8 @@ var ENGINE = (function () {
     if (e.S && e.gfw) parts.push('confirmed by a GFW loitering event (' + fmtDur(e.gfw.hours) + ')');
     if (e.zone) parts.push('inside ISA ' + ZONE_TYPES[e.zone.type].short + ' contract area of ' + e.zone.contractor);
     else if (e.mntKm < 300) parts.push(Math.round(e.mntKm) + ' km from Minamitorishima (rare-earth mud)');
+    var sfE = sfOn(e);
+    if (sfE) parts.push(sfE.kind === 'ridge' ? 'on a mid-ocean ridge' : 'on a seamount (summit ' + mM(sfE.summit_m) + ', rises ' + mM(sfE.rise_m) + ')');
     if (e.eez && e.eez.sov.indexOf(v.country) < 0) parts.push('inside ' + e.eez.name);
     else if (e.eez && e.eez.type !== '200NM') parts.push('inside ' + e.eez.name);
     else if (!e.eez) parts.push('high seas, outside all EEZs');
@@ -248,5 +264,5 @@ var ENGINE = (function () {
     if (e.voyage && e.voyage.same) parts.push('returned to ' + PORT[e.voyage.from].name);
     return parts;
   }
-  return { EXTRAS: X, STATION_RULE: STATION_RULE, build: build, PORTS: PORTS, PORT: PORT, ZONES: ZONES, ZONE_TYPES: ZONE_TYPES, COUNTRY: ISO2NAME, CLASS: CLASS, MODEL: MODEL, REFERENCE: REFERENCE, WATCH: WATCH, REGRESSION: REGRESSION, AS_OF: AS_OF, T_START: T_START, H: H, DAY: DAY, hav: hav, offset: offset, fmtDur: fmtDur, compass: compass };
+  return { EXTRAS: X, STATION_RULE: STATION_RULE, build: build, PORTS: PORTS, PORT: PORT, ZONES: ZONES, ZONE_TYPES: ZONE_TYPES, COUNTRY: ISO2NAME, CLASS: CLASS, MODEL: MODEL, REFERENCE: REFERENCE, WATCH: WATCH, REGRESSION: REGRESSION, AS_OF: AS_OF, T_START: T_START, H: H, DAY: DAY, hav: hav, seafloorText: seafloorText, seafloorOn: sfOn, offset: offset, fmtDur: fmtDur, compass: compass };
 })();

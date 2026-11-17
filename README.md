@@ -281,6 +281,23 @@ The regions are rough boxes for indication only; edit the CSV to refine them.
 Sources: ISA exploration areas; Hein et al. 2013, Ore Geology Reviews 51;
 Kato et al. 2011, Nature Geoscience (REE mud); national seabed-mining reviews.
 
+### Seamounts and ridges
+
+Seamount slopes carry cobalt-rich crusts and are easier to reach than the abyssal
+floor, so a survey or station-keeping detection **on a seamount or mid-ocean
+ridge** counts as evidence of possible mining. `geo_lookup.seafloor_at` measures
+the relief under each detection on the ETOPO 2022 grid we ship: the shallowest
+point within 25 km against the floor 25-75 km out. A seamount rises at least
+1,000 m, its top is deeper than 200 m (not an island or shelf), and it stands
+above its surroundings (at most 10 % of the ring is shallower, which rules out
+continental slopes and trench walls). Inside a seafloor-sulphide region it is a
+ridge. In the console this raises **Resource context**: 0.75 for a seamount
+whose slopes cross the cobalt-crust depths (800-2,500 m), 0.6 for another
+seamount or a ridge, never above an ISA contract value, and only in water
+deeper than 200 m. Such detections carry a SEAMOUNT or RIDGE tag and the
+numbers in their evidence. Layers ▸ **Seafloor (GEBCO)** shades the seafloor
+(off by default; GEBCO Compilation Group, GEBCO Grid).
+
 ## Your own copy on GitHub, and merging later
 
 A separate repository under your own account changes nothing in the team's:

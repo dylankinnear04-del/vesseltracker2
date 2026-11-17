@@ -55,3 +55,59 @@ def test_vessel_class_inferred():
     assert g.vessel_class("", "Coast guard") == ("GOV", True)
     assert g.vessel_class("", "Offshore oil & gas seismic vessel") == ("ENERGY", True)
     assert g.vessel_class("", "Cargo (GFW)") == ("UNK", True)
+
+
+def test_seafloor_emperor_seamount():
+    s = g.seafloor_at(43.388, 170.05)
+    assert s["kind"] == "seamount" and s["crust_depth"] and s["rise_m"] >= 1000
+
+
+def test_seafloor_abyssal_plain():
+    assert g.seafloor_at(9.33, -156.62)["kind"] is None
+
+
+def test_seafloor_southwest_indian_ridge():
+    assert g.seafloor_at(-37.94, 49.26)["kind"] == "ridge"
+
+
+def test_seafloor_island_is_not_a_seamount():
+    assert g.seafloor_at(19.0, -155.5)["kind"] is None
+
+
+def test_seafloor_shelf():
+    assert g.seafloor_at(30.5, 122.5)["kind"] is None      # East China Sea shelf
+
+
+def test_seafloor_dateline_and_pole_do_not_crash():
+    for lat, lon in ((43.0, 179.95), (43.0, -179.95), (85.0, 10.0), (-81.0, 0.0)):
+        assert isinstance(g.seafloor_at(lat, lon), dict)
+
+
+def test_seafloor_dateline_sees_both_sides():
+    east, west = g.seafloor_at(43.0, 179.99), g.seafloor_at(43.0, -179.99)
+    assert abs(east["summit_m"] - west["summit_m"]) < 300
+
+
+def test_seafloor_without_grid(monkeypatch, tmp_path):
+    monkeypatch.setattr(g, "DEPTH_FILE", tmp_path / "none.npz")
+    g._depth.cache_clear()
+    try:
+        assert g.seafloor_at(43.388, 170.05) is None
+    finally:
+        g._depth.cache_clear()
+
+
+def test_seafloor_continental_slope_is_not_a_seamount():
+    # Gulf of Mexico slope, Irish margin, Hispaniola trench wall: steep, but shallower water lies to one side
+    for lat, lon in ((27.16, -90.23), (51.07, -14.76), (19.1175, -68.385)):
+        assert g.seafloor_at(lat, lon)["kind"] is None, (lat, lon)
+
+
+def test_seafloor_magellan_seamounts_still_found():
+    assert g.seafloor_at(17.98, 152.01)["kind"] == "seamount"
+
+
+def test_seafloor_small_islands_are_not_seamounts():
+    # too small for the 5' grid, but on the coastline file: a ship waiting off them is not over a seamount
+    for lat, lon in ((-25.07, -130.1), (19.29, 166.62), (24.28, 153.98), (0.92, -29.35)):   # Pitcairn, Wake, Minamitorishima, St Paul Rocks
+        assert g.seafloor_at(lat, lon)["kind"] is None, (lat, lon)
