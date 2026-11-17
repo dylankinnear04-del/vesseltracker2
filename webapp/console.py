@@ -32,9 +32,17 @@ def track_notice(newest: datetime.date | None, status_file: Path = GFW_STATUS,
     return None
 
 
-@lru_cache(maxsize=1)
+CONSOLE_FILES = ("console.html", "engine.js", "ui.js")
+
+
+@lru_cache(maxsize=2)
+def _read_parts(where: str, stamp: tuple) -> tuple[str, str, str]:
+    return tuple((Path(where) / f).read_text(encoding="utf-8") for f in CONSOLE_FILES)
+
+
 def _parts() -> tuple[str, str, str]:
-    return tuple((DIR / f).read_text(encoding="utf-8") for f in ("console.html", "engine.js", "ui.js"))
+    """The console's files, re-read when one changes (a deploy that updates code without restarting the server)."""
+    return _read_parts(str(DIR), tuple((DIR / f).stat().st_mtime for f in CONSOLE_FILES))
 
 
 ORIGINAL_BANNER = ("Unclassified · real AIS: Global Fishing Watch, 1 May – 29 Oct 2026 · GFW events &amp; registry "

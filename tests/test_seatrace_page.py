@@ -21,3 +21,19 @@ def test_assemble_escapes_script_end():
     html = assemble('{"name": "</script><b>x"}')
     data = html.split('id="seatrace-data">', 1)[1].split("</script>", 1)[0]
     assert "\\u003c/script>" in data and "{{" not in html
+
+
+def test_console_files_reread_after_a_change(tmp_path, monkeypatch):
+    """A deploy that changes ui.js must show up without restarting the server (no stale in-memory copy)."""
+    import os
+    import shutil
+    from webapp import console
+    for f in ("console.html", "engine.js", "ui.js", "addons.js"):
+        shutil.copy(console.DIR / f, tmp_path / f)
+    monkeypatch.setattr(console, "DIR", tmp_path)
+    assert "MARKER-OLD" not in console.assemble('{"events":[],"vessels":[]}')
+    ui = tmp_path / "ui.js"
+    ui.write_text(ui.read_text() + "\n/* MARKER-NEW */\n")
+    st = ui.stat()
+    os.utime(ui, (st.st_atime, st.st_mtime + 5))
+    assert "MARKER-NEW" in console.assemble('{"events":[],"vessels":[]}')
