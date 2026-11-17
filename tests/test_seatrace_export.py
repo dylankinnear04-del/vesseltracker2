@@ -248,3 +248,8 @@ def test_supply_list_date_is_the_download_date(monkeypatch, tmp_path):
     monkeypatch.setattr(supply_chain, "LIST_META", meta)
     blob = {"vessels": [], "events": []}
     assert sx.supply_extras(blob, data.library())["listDate"] == "2026-11-12"
+
+
+def test_every_event_has_seafloor(blob):
+    assert blob["events"] and all("seafloor" in e for e in blob["events"])
+    json.loads(sx.to_json(blob))          # strict JSON (no NaN)

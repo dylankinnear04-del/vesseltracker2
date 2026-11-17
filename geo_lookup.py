@@ -155,6 +155,47 @@ def depth_m(lat: float, lon: float) -> float | None:
     return float(z[_nearest(lats, float(lat)), _nearest(lons, _wrap(lon))])
 
 
+SEAMOUNT_INNER_KM, SEAMOUNT_OUTER_KM = 25.0, 75.0
+SEAMOUNT_RISE_M, SEAMOUNT_SUMMIT_M = 1000, -200      # rises ≥ 1 km; summit below 200 m (not an island or shelf)
+CRUST_TOP_M, CRUST_BOTTOM_M = -800, -2500            # cobalt-rich crust window on seamount slopes
+KM_PER_DEG = 111.2
+
+
+def seafloor_at(lat: float, lon: float) -> dict | None:
+    """Relief under a detection: is it on a seamount or a mid-ocean ridge?
+
+    summit = shallowest cell within 25 km; base = 25th-percentile cell 25-75 km out; rise = summit - base.
+    Seamount: rise >= 1000 m and summit deeper than 200 m. Ridge: the same, inside a seafloor-massive-sulphide
+    region (reference_data/seabed_resources.csv). crust_depth: the slopes cross 800-2500 m."""
+    d = _depth()
+    if d is None:
+        return None
+    z, lats, lons = d
+    lat, lon = float(lat), _wrap(float(lon))
+    dlat = SEAMOUNT_OUTER_KM / KM_PER_DEG
+    dlon = min(180.0, SEAMOUNT_OUTER_KM / (KM_PER_DEG * max(np.cos(np.radians(lat)), 0.05)))
+    rows = np.nonzero(np.abs(lats - lat) <= dlat)[0]
+    dx = (lons - lon + 180) % 360 - 180
+    cols = np.nonzero(np.abs(dx) <= dlon)[0]
+    win = z[np.ix_(rows, cols)].astype(float)
+    km = np.hypot((lats[rows] - lat)[:, None] * KM_PER_DEG,
+                  dx[cols][None, :] * KM_PER_DEG * np.cos(np.radians(lats[rows]))[:, None])
+    inner, ring = win[km <= SEAMOUNT_INNER_KM], win[(km > SEAMOUNT_INNER_KM) & (km <= SEAMOUNT_OUTER_KM)]
+    if not inner.size or not ring.size:
+        return None
+    summit, base = float(inner.max()), float(np.percentile(ring, 25))
+    rise = summit - base
+    raised = rise >= SEAMOUNT_RISE_M and summit < SEAMOUNT_SUMMIT_M
+    kind = None
+    if raised:
+        import resource_context                      # here, not at the top: resource_context is heavier
+        hits = resource_context.regions_at(lat, lon)
+        on_ridge = not hits.empty and (hits["category"] == "Seafloor massive sulphides").any()
+        kind = "ridge" if on_ridge else "seamount"
+    return {"kind": kind, "summit_m": int(round(summit)), "base_m": int(round(base)), "rise_m": int(round(rise)),
+            "crust_depth": bool(kind == "seamount" and summit > CRUST_BOTTOM_M and base < CRUST_TOP_M)}
+
+
 @lru_cache(maxsize=1)
 def _classes() -> dict:
     if not CLASS_FILE.exists():

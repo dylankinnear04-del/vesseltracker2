@@ -273,6 +273,7 @@ def build_blob(res: dict, lib: pd.DataFrame, isa_features: list | None, station:
               "mntKm": round(float(track_events.haversine_km(lat, lon, *MINAMITORISHIMA)), 1),
               "eez": {"mrgid": z.get("mrgid"), "name": z["name"], "type": z["type"], "sov": list(z["sovereigns"])} if z else None,
               "depth": int(d["depth_m"]) if d["depth_m"] is not None and not pd.isna(d["depth_m"]) else None,
+              "seafloor": geo_lookup.seafloor_at(lat, lon),
               "boundary": {k: (round(v, 1) if k == "km" else v) for k, v in bd.items()} if bd else None,
               "gfwMatch": None}
         if d["kind"] == "survey":
