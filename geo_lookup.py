@@ -167,7 +167,8 @@ def seafloor_at(lat: float, lon: float) -> dict | None:
 
     summit = shallowest cell within 25 km; base = 25th-percentile cell 25-75 km out; rise = summit - base.
     Seamount: rise >= 1000 m, summit deeper than 200 m, and no more than 10 % of the ring shallower than the
-    summit (a slope has a shallow side; a seamount does not). Ridge: the same, inside a seafloor-massive-sulphide
+    summit (a slope has a shallow side; a seamount does not), and no coastline within 25 km (small islands
+    and atolls are lost at 5'). Ridge: the same, inside a seafloor-massive-sulphide
     region (reference_data/seabed_resources.csv). crust_depth: the slopes cross 800-2500 m."""
     d = _depth()
     if d is None:
@@ -189,6 +190,9 @@ def seafloor_at(lat: float, lon: float) -> dict | None:
     rise = summit - base
     isolated = float((ring > summit).mean()) <= SEAMOUNT_MAX_HIGHER     # rules out continental slopes and trench walls
     raised = rise >= SEAMOUNT_RISE_M and summit < SEAMOUNT_SUMMIT_M and isolated
+    if raised:                    # islands and atolls narrower than a 5' cell vanish from the grid; the coastline keeps them
+        from survey_pattern_detector import coast_distance_km
+        raised = not float(coast_distance_km(lat, lon)[0]) <= SEAMOUNT_INNER_KM     # NaN (no coastline file): keep
     kind = None
     if raised:
         import resource_context                      # here, not at the top: resource_context is heavier

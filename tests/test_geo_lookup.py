@@ -105,3 +105,9 @@ def test_seafloor_continental_slope_is_not_a_seamount():
 
 def test_seafloor_magellan_seamounts_still_found():
     assert g.seafloor_at(17.98, 152.01)["kind"] == "seamount"
+
+
+def test_seafloor_small_islands_are_not_seamounts():
+    # too small for the 5' grid, but on the coastline file: a ship waiting off them is not over a seamount
+    for lat, lon in ((-25.07, -130.1), (19.29, 166.62), (24.28, 153.98), (0.92, -29.35)):   # Pitcairn, Wake, Minamitorishima, St Paul Rocks
+        assert g.seafloor_at(lat, lon)["kind"] is None, (lat, lon)
