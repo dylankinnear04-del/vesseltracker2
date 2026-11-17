@@ -39,7 +39,8 @@
     '#left-entities .scroll{padding:6px 8px}.stx-ent{border-bottom:1px solid var(--line);padding:8px 4px;cursor:pointer}.stx-ent:hover{background:var(--raise)}' +
     '.stx-ent .nm{color:var(--ink);font-weight:600;font-size:12.5px}.stx-ent .sub{color:var(--ink-3);font-size:11px;display:block;margin-top:2px}' +
     '.stx-ent .ships{display:none;margin-top:6px;gap:3px}.stx-ent.open .ships{display:grid}.stx-ent .ships button{all:unset;cursor:pointer;color:var(--accent);font-size:12px}' +
-    '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}';
+    '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}' +
+    '.sftag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#8d6e6333;color:#d7b9a8;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help}';
   document.head.appendChild(css);
 
   /* ---------- header: ship group + season, Analyst menu ---------- */
