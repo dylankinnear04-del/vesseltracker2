@@ -63,6 +63,12 @@ DRIVER = """<script>
     click('tab-entities'); var r0=document.querySelector('.stx-ent'); if(r0){ r0.click(); var b0=r0.querySelector('[data-vid]'); if(b0) b0.click(); }
     click('tab-fleet');
     var A=window.SEATRACE; if(A && A.D.events.length){ A.focusEvent(A.D.events[0].id, false); }
+    /* SEAMOUNT / RIDGE tags: one per listed alert on a seamount or ridge, and in the detection panel header */
+    if(A){ click('tab-alerts'); var listed=[].slice.call(document.querySelectorAll('.alert[data-ev]')).map(function(b){return b.getAttribute('data-ev');});
+      var want=listed.filter(function(id){var e=A.D.events.filter(function(x){return x.id===id;})[0];return e&&ENGINE.seafloorOn(e);});
+      var got=document.querySelectorAll('.alert .sftag').length, sfe=want.length?A.D.events.filter(function(x){return x.id===want[0];})[0]:null, head=true;
+      if(sfe){ A.focusEvent(sfe.id,false); var t=document.querySelector('.evhead .sftag'); head=!!t&&t.title===ENGINE.seafloorText(sfe.seafloor); }
+      out.tagOk=got===want.length&&head; if(!out.tagOk) window.__errors.push('seafloor tags: '+got+' of '+want.length+', header '+head); click('tab-fleet'); }
     out.entities=document.querySelectorAll('.stx-ent').length;
   }catch(e){window.__errors.push('driver: '+e.message);}
   setTimeout(function(){ out.supply=!!document.querySelector('.stx-supply'); out.ok=window.__errors.length===0; document.title=JSON.stringify(out); },1500);

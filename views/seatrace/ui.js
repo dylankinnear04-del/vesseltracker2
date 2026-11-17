@@ -97,6 +97,8 @@
     $('achips').innerHTML = ['P1', 'P2', 'P3', 'P4'].map(function (p) { var n = D.events.filter(function (e) { return e.tier === p; }).length; return '<button class="chip pr ' + p + '" type="button" data-pri="' + p + '" aria-pressed="' + S.pri[p] + '">' + p + ' · ' + n + '</button>'; }).join('');
     $('mchips').innerHTML = [['ALL', 'All models'], ['LAWNMOWER_SURVEY', 'Survey'], ['STATIONKEEPING_OPERATION', 'Stationkeeping'], ['PILOT_COLLECTION', 'Collection']].map(function (m) { return '<button class="chip" type="button" data-model="' + m[0] + '" aria-pressed="' + (S.model === m[0]) + '">' + m[1] + '</button>'; }).join('');
   }
+  /* Survey Detector: SEAMOUNT / RIDGE tag for a detection on one (engine.seafloorOn) */
+  function sfTag(e) { var s = E.seafloorOn && E.seafloorOn(e); return s ? '<span class="sftag" title="' + esc(E.seafloorText(s)) + '">' + (s.kind === 'ridge' ? 'RIDGE' : 'SEAMOUNT') + '</span>' : ''; }
   function alertList() { return D.events.filter(function (e) { return S.pri[e.tier] && (S.model === 'ALL' || e.model === S.model); }); }
   function renderAlerts() {
     var w = E.WATCH.filter(function (x) { return V[x.vessel]; }).map(function (x) { return '<button class="watchcard" type="button" data-watch="' + x.id + '"><span class="k">WATCH WINDOW · ' + esc(x.window) + '</span><b>' + esc(V[x.vessel].name) + ': ' + esc(x.title) + '</b><span class="muted" style="font-size:11.5px">' + esc(x.basis) + '</span></button>'; }).join('');
@@ -104,7 +106,7 @@
     var html = w + '<div class="secthead">Detections by priority · ' + list.length + '</div>' + list.map(function (e) {
       var v = V[e.vessel], c = caseOf(e.id);
       return '<button class="alert ' + e.tier + (S.ev === e.id ? ' is-focus' : '') + '" type="button" data-ev="' + e.id + '"><span class="bar"></span><span class="bd">' +
-        '<span class="r1"><span class="ptag ' + e.tier + '">' + e.tier + '</span><span class="nm">' + esc(v.name) + '</span><span class="flag">' + v.flag + '</span></span>' +
+        '<span class="r1"><span class="ptag ' + e.tier + '">' + e.tier + '</span><span class="nm">' + esc(v.name) + '</span><span class="flag">' + v.flag + '</span>' + sfTag(e) + '</span>' +
         '<span class="r2"><span class="model ' + e.model + '" style="line-height:16px;font-size:9.5px">' + E.MODEL[e.model].short + '</span><span class="num">' + fDs(e.t0) + ' → ' + (e.active ? 'now' : fDs(e.t1)) + '</span><span class="num">conf ' + e.confScore.toFixed(2) + '</span><span class="case ' + c.state + '">' + c.state + '</span></span>' +
         '<span class="why">' + esc(e.why.slice(0, 4).join(' · ')) + '</span></span></button>';
     }).join('');
@@ -394,7 +396,7 @@
     } else {
       if (v.events.length > 1) html += '<div class="evtabs" role="tablist">' + v.events.slice().sort(function (a, b) { return a.t0 - b.t0; }).map(function (x) { return '<button class="evtab" role="tab" type="button" data-ev="' + x.id + '" aria-selected="' + (x.id === e.id) + '"><span class="ptag ' + x.tier + '">' + x.tier + '</span>' + E.MODEL[x.model].short + ' · ' + fDs(x.t0) + '</button>'; }).join('') + '</div>';
       var c = caseOf(e.id);
-      html += '<div class="sec"><div class="evhead"><span class="model ' + e.model + '">' + E.MODEL[e.model].label.toUpperCase() + '</span><span class="st ' + (e.active ? 'act' : 'port') + '">' + e.status + '</span><span class="muted mono" style="font-size:11px;margin-left:auto">' + e.id + '</span></div>' +
+      html += '<div class="sec"><div class="evhead"><span class="model ' + e.model + '">' + E.MODEL[e.model].label.toUpperCase() + '</span><span class="st ' + (e.active ? 'act' : 'port') + '">' + e.status + '</span>' + sfTag(e) + '<span class="muted mono" style="font-size:11px;margin-left:auto">' + e.id + '</span></div>' +
         '<div class="evdates">' + fDT(e.t0) + ' → ' + (e.active ? 'ongoing' : fDT(e.t1)) + ' · ' + dur((e.t1 - e.t0) / H) + '</div>' +
         '<div class="scores"><div class="score"><span class="lab">Detection confidence</span><span class="big"><b>' + e.confScore.toFixed(2) + '</b><span>' + e.confLabel + '</span></span><span class="sub">' + esc(e.confSource) + '</span></div>' +
         '<div class="score pri ' + e.tier + '"><span class="lab">Analyst priority</span><span class="big"><b>' + e.tier + '</b><span>' + e.priScore.toFixed(2) + '</span></span><span class="sub">Resource context, vessel class, geography, history</span></div></div>' +
