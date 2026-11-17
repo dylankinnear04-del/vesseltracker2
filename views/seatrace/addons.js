@@ -242,7 +242,10 @@
   });
 
   /* ---------- shareable links: #v=ship&e=detection&view=… in the page address ---------- */
+  var acted = false;     /* the URL gets a selection only once someone picks one (a reload must not fly to our default) */
+  ['pointerdown', 'keydown'].forEach(function (k) { document.addEventListener(k, function () { acted = true; }, true); });
   function writeHash() {
+    if (!acted) return;
     var h = '#' + [S.focus ? 'v=' + encodeURIComponent(S.focus) : '', S.ev ? 'e=' + encodeURIComponent(S.ev) : '', S.view && S.view !== 'map' ? 'view=' + S.view : '']
       .filter(Boolean).join('&');
     try { var w = window.top; if (w.location.hash !== h) w.history.replaceState(null, '', w.location.pathname + w.location.search + h); } catch (err) { }
@@ -388,10 +391,63 @@
     });
   })();
 
+  /* ---------- a map you can turn all the way round ---------- */
+  /* The camera stays within one world-width centred on HOME (dragging past it jumps by 360°, to the identical
+     picture), and every layer SeaTrace draws once is repeated in the neighbouring world copies on screen. */
+  var HOME = 90, gMirror = L.layerGroup().addTo(map);
+  function shiftLL(ll, off) { return Array.isArray(ll) ? ll.map(function (x) { return shiftLL(x, off); }) : L.latLng(ll.lat, ll.lng + off); }
+  function lngRange(l) {
+    if (l.getBounds) { try { var b = l.getBounds(); if (b.isValid()) return [b.getWest(), b.getEast()]; } catch (e) { } return null; }
+    if (l.getLatLng) { var p = l.getLatLng(); return p ? [p.lng, p.lng] : null; }
+    return null;
+  }
+  function cloneAt(l, off) {
+    var c = null;
+    if (l instanceof L.LayerGroup) { c = L.layerGroup(); l.eachLayer(function (x) { var y = cloneAt(x, off); if (y) c.addLayer(y); }); return c; }
+    if (l instanceof L.Polygon) c = L.polygon(shiftLL(l.getLatLngs(), off), l.options);
+    else if (l instanceof L.Polyline) c = L.polyline(shiftLL(l.getLatLngs(), off), l.options);
+    else if (l instanceof L.Circle) c = L.circle(shiftLL(l.getLatLng(), off), l.options);
+    else if (l instanceof L.CircleMarker) c = L.circleMarker(shiftLL(l.getLatLng(), off), l.options);
+    else if (l instanceof L.Marker) c = L.marker(shiftLL(l.getLatLng(), off), l.options);
+    else if (l instanceof L.Tooltip) return L.tooltip(l.options).setLatLng(shiftLL(l.getLatLng(), off)).setContent(l.getContent());
+    if (!c) return null;
+    var tt = l.getTooltip && l.getTooltip(); if (tt) c.bindTooltip(tt.getContent(), tt.options);
+    if (l.listens && l.listens('click')) c.on('click', function (e) { l.fire('click', e); });   /* a copy acts like the original */
+    return c;
+  }
+  function mirror() {
+    gMirror.clearLayers();
+    var b = map.getBounds(), W = b.getWest(), E2 = b.getEast(), n = 0;
+    (A.groups || []).forEach(function (g) {
+      if (!map.hasLayer(g)) return;
+      g.eachLayer(function (l) {
+        var r = (l instanceof L.LayerGroup) ? null : lngRange(l);
+        [-720, -360, 360, 720].forEach(function (off) {
+          if (r && (r[1] + off < W || r[0] + off > E2)) return;
+          if (!r && !(l instanceof L.LayerGroup)) return;
+          var c = cloneAt(l, off); if (c) { gMirror.addLayer(c); n++; }
+        });
+      });
+    });
+    return n;
+  }
+  window.ST_AFTER_MAP = function () { mirror(); };
+  window.ST_MIRROR = mirror;
+  var wrapping = false;
+  map.on('moveend', function () {
+    if (wrapping) return;
+    var c = map.getCenter(), off = c.lng < HOME - 180 ? 360 : c.lng >= HOME + 180 ? -360 : 0;
+    if (off) { wrapping = true; map.setView([c.lat, c.lng + off], map.getZoom(), { animate: false }); wrapping = false; }
+    mirror();
+  });
+  map.on('overlayadd overlayremove layeradd', function (e) { if (e.layer && (A.groups || []).indexOf(e.layer) >= 0) mirror(); });
+
   /* ---------- start ---------- */
+  var q = readHash();               /* before anything is written: only a link someone opened, not our own default */
   applyLayers(); decorateFleet(); decorateIntel();
-  var q = readHash();
-  if (q.e && A.EVI[q.e]) A.focusEvent(q.e, true); else if (q.v && V[q.v]) A.focusVessel(q.v, null, true);
+  if (q.e && A.EVI[q.e]) { A.focusEvent(q.e, false); map.setView(A.EVI[q.e].center, 6); acted = true; writeHash(); }
+  else if (q.v && V[q.v]) { A.focusVessel(q.v, null, false); var lp = V[q.v].pts[V[q.v].pts.length - 1]; if (lp) map.setView([lp.lat, lp.lon], 5); acted = true; writeHash(); }
+  mirror();
   if (q.view && /^(gallery|timeline)$/.test(q.view)) A.setView(q.view);
   var notes = window.ST_NOTICES || [];
   if (notes.length) setTimeout(function () { A.toast(notes.join(' · ')); }, 600);

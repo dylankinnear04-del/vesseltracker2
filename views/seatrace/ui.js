@@ -118,7 +118,7 @@
   }
 
   /* ---------- map ---------- */
-  var map = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: true, minZoom: 2, maxZoom: 13, maxBounds: [[-82, -150], [86, 400]], maxBoundsViscosity: 0.7, zoomSnap: 0.25 });
+  var map = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: true, minZoom: 2, maxZoom: 13, maxBounds: [[-82, -1e5], [86, 1e5]], maxBoundsViscosity: 0.7,   /* Survey Detector: free east-west (addons.js wraps the camera and repeats the layers) */ zoomSnap: 0.25 });
   map.fitBounds([[-40, 30], [62, 250]]);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.scale({ position: 'bottomright', imperial: false, maxWidth: 110 }).addTo(map);
@@ -276,6 +276,7 @@
       gMk.addLayer(m);
       if (foc) gMk.addLayer(L.tooltip({ permanent: true, direction: 'right', offset: [14, 0], className: 'lbl', interactive: false }).setLatLng([p.lat, p.lon]).setContent(esc(v.name)));
     });
+    if (window.ST_AFTER_MAP) window.ST_AFTER_MAP();   /* Survey Detector: repeat across the dateline */
   }
 
   /* ---------- layers control ---------- */
@@ -1040,7 +1041,8 @@
   /* Survey Detector: hand the console's state and helpers to addons.js (our extra features) */
   window.SEATRACE = { E: E, D: D, V: V, S: S, EVI: EVI, map: map, LAYERS: LAYERS, store: store, renderLayers: renderLayers,
     renderIntel: renderIntel, renderAlerts: renderAlerts, renderFleet: renderFleet, renderMap: renderMap, focusEvent: focusEvent,
-    focusVessel: focusVessel, setView: setView, caseOf: caseOf, toast: toast, copy: copy, esc: esc, fDs: fDs, fD: fD };
+    focusVessel: focusVessel, setView: setView, caseOf: caseOf, toast: toast, copy: copy, esc: esc, fDs: fDs, fD: fD,
+    groups: [gZones, gRee, gHot, gKnown, gGrat, gDyn, gMk] };
 
   /* ---------- init ---------- */
   renderStats(); renderFChips(); renderAChips(); renderLayers(); renderFleet(); renderAlerts(); renderIntel();
