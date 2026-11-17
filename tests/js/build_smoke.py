@@ -14,14 +14,26 @@ sys.path.insert(0, str(ROOT))
 
 from webapp import console, data, seatrace_export as sx   # noqa: E402
 
-RECORDER = """<script>window.__errors=[];window.addEventListener('error',function(e){window.__errors.push(String(e.message)+' @'+(e.lineno||''));});
+RECORDER = """<script>window.__hash0=(function(){try{return window.top.location.hash}catch(e){return location.hash}})();window.__errors=[];window.addEventListener('error',function(e){window.__errors.push(String(e.message)+' @'+(e.lineno||''));});
 window.addEventListener('unhandledrejection',function(e){window.__errors.push('promise: '+String(e.reason));});</script>"""
 DRIVER = """<script>
 (function(){
   function $(id){return document.getElementById(id);}
   function click(id){var el=$(id); if(el) el.click();}
   var out={errors:window.__errors,steps:0,events:0,vessels:0};
+  setTimeout(function(){   /* let start-up animations (a restored link's fly-to) finish first */
   try{
+    var M=window.SEATRACE&&window.SEATRACE.map;
+    if(M){ out.startZoom=M.getZoom(); out.hashAtStart=(function(){try{return window.top.location.hash}catch(e){return location.hash}})();
+      M.setView([10,-170],3,{animate:false}); M.fire('moveend');                    /* pan west past the old -150 lock */
+      var lng=M.getCenter().lng; out.panOk=Math.abs((((lng+170)%360)+360)%360)<1;  /* same place on the globe, not pulled back */
+      out.mirror=window.ST_MIRROR?window.ST_MIRROR():-1;                             /* ships/tracks repeated where needed */
+      M.setView([0,140],2,{animate:false}); M.fire('moveend'); }
+    out.hash0=window.__hash0||''; out.link=/(^|[#&])e=/.test(out.hash0);
+    if(!(out.startZoom<=(out.link?6:4))) window.__errors.push('starts zoomed in: '+out.startZoom);
+    if(!out.link && /e=/.test(out.hashAtStart)) window.__errors.push('default selection written to the URL before any click: '+location.hash);
+    if(!out.panOk) window.__errors.push('pan west blocked');
+    if(!(out.mirror>0)) window.__errors.push('no world copies of ships/tracks: '+out.mirror);
     var raw=JSON.parse(document.getElementById('seatrace-data').textContent); out.events=raw.events.length; out.vessels=raw.vessels.length;
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
@@ -35,6 +47,7 @@ DRIVER = """<script>
     out.entities=document.querySelectorAll('.stx-ent').length;
   }catch(e){window.__errors.push('driver: '+e.message);}
   setTimeout(function(){ out.supply=!!document.querySelector('.stx-supply'); out.ok=window.__errors.length===0; document.title=JSON.stringify(out); },1500);
+  },1200);
 })();
 </script>"""
 
