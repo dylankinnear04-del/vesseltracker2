@@ -1,0 +1,11 @@
+mineral,net_import_reliance_pct,top_sources,us_critical_mineral,year,source
+manganese,100,"Gabon, South Africa, Malaysia, Australia",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+platinum,89,"South Africa, Belgium, Germany, Italy",no,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+cobalt,79,"Norway, Finland, Canada, Japan",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+silver,77,"Mexico, Canada, Chile, Turkey",no,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+zinc,73,"Canada, Mexico, Peru, Republic of Korea",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+rare earths,67,"China, Malaysia, Estonia, Japan",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+copper,57,"Chile, Canada, Peru, Mexico",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+nickel,41,"Canada, Norway, Australia, Brazil",yes,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+tellurium,>25,"Canada, Philippines, Japan, Germany",no,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"
+gold,,"US is a net exporter (not in the USGS net import reliance table)",no,2025,"https://doi.org/10.5066/P1WKQ63T (USGS Mineral Commodity Summaries 2026 data release: Fig 2 and Fig 3)"

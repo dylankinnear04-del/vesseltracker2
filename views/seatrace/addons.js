@@ -28,7 +28,18 @@
     '.stx-port i{width:8px;height:8px;border-radius:50%;display:inline-block}.stx-port .km{font-family:var(--f-mono);color:var(--ink-2);font-size:11.5px}' +
     '.stx-port small{color:var(--ink-3)}.stx-tgt b{color:var(--ink)}.stx-tgt{font-size:12.5px;color:var(--ink-2)}' +
     '.stx-tools{display:flex;gap:6px;flex-wrap:wrap;padding:0 0 8px}.stx-tools .tbtn{height:26px;font-size:11px}' +
-    '.stx-watch{opacity:.55}.stx-watch .vrow{cursor:default}.stx-link{display:flex;gap:6px}';
+    '.stx-watch{opacity:.55}.stx-watch .vrow{cursor:default}.stx-link{display:flex;gap:6px}' +
+    '.stx-chain{display:grid;gap:5px;font-size:12px;color:var(--ink-2)}.stx-chain b{color:var(--ink);font-weight:600}' +
+    '.stx-chain .lab{font:600 10px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-right:6px}' +
+    '.stx-chain .src{color:var(--ink-3);font-size:11px}.stx-chain .arrow{color:var(--ink-3);padding-left:4px}' +
+    '.stx-hit{display:inline-flex;align-items:center;gap:4px;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;margin:2px 4px 2px 0;text-decoration:none}' +
+    '.stx-hit.confirmed{background:var(--p1);color:#160404}.stx-hit.likely{background:var(--p2);color:#1a1002}.stx-hit.possible{border:1px dashed var(--ink-3);color:var(--ink-2)}' +
+    '.stx-badge{border:1px solid var(--line-2);border-radius:9px;padding:0 6px;font-size:10.5px;color:var(--ink-2);margin-left:4px}' +
+    '.stx-min{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:12px}.stx-min .pct{font-family:var(--f-mono);color:var(--ink)}' +
+    '#left-entities .scroll{padding:6px 8px}.stx-ent{border-bottom:1px solid var(--line);padding:8px 4px;cursor:pointer}.stx-ent:hover{background:var(--raise)}' +
+    '.stx-ent .nm{color:var(--ink);font-weight:600;font-size:12.5px}.stx-ent .sub{color:var(--ink-3);font-size:11px;display:block;margin-top:2px}' +
+    '.stx-ent .ships{display:none;margin-top:6px;gap:3px}.stx-ent.open .ships{display:grid}.stx-ent .ships button{all:unset;cursor:pointer;color:var(--accent);font-size:12px}' +
+    '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}';
   document.head.appendChild(css);
 
   /* ---------- header: ship group + season, Analyst menu ---------- */
@@ -150,6 +161,55 @@
     out += '<div class="stx-link"><button class="tbtn" type="button" id="stx-copylink">Copy link to this detection</button></div>';
     return '<div class="sec stx-x"><h4>Ports &amp; target · Survey Detector</h4>' + out + '</div>';
   }
+  /* ---------- supply chain card ---------- */
+  var SUP = X.supply || null;
+  var LEVEL = { confirmed: 'Confirmed', likely: 'Likely', possible: 'Possible · verify' };
+  function webUrl(u) { u = String(u || ''); return /^https?:\/\//i.test(u) ? u : ''; }
+  function hitChip(h) {
+    var tip = h.entry + ' — ' + h.source + (h.program ? ' (' + h.program + ')' : '') + (h.date ? ', listed ' + h.date : '') + (h.score < 1 ? ', name similarity ' + Math.round(h.score * 100) + '%' : '');
+    var inner = esc(LEVEL[h.level] || h.level) + ': ' + esc(h.list);
+    return webUrl(h.url) ? '<a class="stx-hit ' + esc(h.level) + '" href="' + esc(h.url) + '" target="_blank" rel="noopener" title="' + esc(tip) + '">' + inner + '</a>'
+                 : '<span class="stx-hit ' + esc(h.level) + '" title="' + esc(tip) + '">' + inner + '</span>';
+  }
+  function hitsFor(c, who) {
+    var hs = c.hits.filter(function (h) { return h.matched === who; });
+    return hs.length ? '<div>' + hs.map(hitChip).join('') + '</div>' : '';
+  }
+  function supplySection() {
+    var e = A.EVI[S.ev]; if (!SUP || !e || !S.focus) return '';
+    var c = SUP.ships[e.vessel], a = SUP.areas[e.id];
+    if (!c && !a) return '';
+    var out = '<div class="stx-chain">';
+    if (c) {
+      var v = V[e.vessel] || {};
+      out += '<div><span class="lab">Ship</span><b>' + esc(v.name || e.vessel) + '</b>' + (c.ship_hits.length ? ' ' + c.ship_hits.map(hitChip).join('') : '') + '</div>';
+      /* lists the team verified (entity_links.csv) but the name match did not find: shown on the parent, else the owner */
+      var extra = c.verified_lists.filter(function (l) { return !c.hits.some(function (h) { return h.list === l; }); });
+      var verifiedHtml = extra.length ? '<div>' + extra.map(function (l) { return '<span class="stx-hit confirmed" title="Verified by the team (entity_links.csv)">Confirmed: ' + esc(l) + '</span>'; }).join('') + '</div>' : '';
+      if (c.owner) out += '<div class="arrow">↓</div><div><span class="lab">Owner</span><b>' + esc(c.owner) + '</b> <span class="src">' + esc(c.owner_source) + '</span>' + hitsFor(c, 'owner') + (c.parent ? '' : verifiedHtml) + '</div>';
+      if (c.parent) out += '<div class="arrow">↓</div><div><span class="lab">Parent</span><b>' + esc(c.parent) + '</b>' + (c.state_owned ? '<span class="stx-badge">state-owned' + (c.country ? ' · ' + esc(c.country) : '') + '</span>' : '') + hitsFor(c, 'parent') + verifiedHtml + '</div>';
+      if (c.ultimate_owner && c.ultimate_owner !== c.parent) out += '<div class="arrow">↓</div><div><span class="lab">Ultimate owner</span><b>' + esc(c.ultimate_owner) + '</b>' + hitsFor(c, 'ultimate_owner') + '</div>';
+      if (!SUP.listDate) out += '<div class="src">Screening list not loaded: this ship and its owners have not been screened.</div>';
+      else if (!c.hits.length && !c.ship_hits.length && !c.verified_lists.length && c.owner) out += '<div class="src">No restricted-list match for the ship, owner or parents.</div>';
+      c.notes.forEach(function (n) { out += '<div class="src">' + esc(n) + '</div>'; });
+      if (c.link_note) out += '<div class="src">' + esc(c.link_note) + (webUrl(c.link_url) ? ' · <a href="' + esc(c.link_url) + '" target="_blank" rel="noopener" style="color:var(--accent)">source</a>' : '') + '</div>';
+    }
+    if (a) {
+      out += '<div style="height:6px"></div>';
+      if (a.contract) out += '<div><span class="lab">Area</span><b>' + esc(a.contractor || a.contract) + '</b> <span class="src">' + (a.basis === 'near' ? 'near ' : '') + 'ISA contract ' + esc(a.contract) + (a.sponsor ? ' · sponsor ' + esc(a.sponsor) : '') + '</span></div>';
+      else if (a.region) out += '<div><span class="lab">Area</span><b>' + esc(a.region) + '</b> <span class="src">seabed resource region (no ISA contract within 300 km)</span></div>';
+      if (a.minerals.length) {
+        out += '<div class="arrow">↓</div><div><span class="lab">Minerals · US import reliance</span><div class="stx-min">' + a.minerals.map(function (m) {
+          return '<span>' + esc(m.name) + (m.critical ? '<span class="stx-badge">critical</span>' : '') + (m.top_sources ? ' <span class="src">' + esc(m.top_sources) + '</span>' : '') + '</span><span class="pct">' + (m.reliance_pct ? esc(m.reliance_pct) + '%' : '—') + '</span>';
+        }).join('') + '</div><span class="src">USGS Mineral Commodity Summaries' + (a.minerals[0].year ? ' (' + esc(a.minerals[0].year) + ' data)' : '') + '</span></div>';
+      }
+      if (a.processing.length) out += '<div class="arrow">↓</div><div><span class="lab">Processed at</span>' + a.processing.slice(0, 4).map(function (p) { return esc(p.site) + ' <span class="src">' + esc(p.operator) + ', ' + esc(p.country) + '</span>'; }).join('<br>') + (a.processing.length > 4 ? '<br><span class="src">+' + (a.processing.length - 4) + ' more</span>' : '') + '</div>';
+      a.notes.forEach(function (n) { out += '<div class="src">' + esc(n) + '</div>'; });
+    }
+    out += '<div class="src">Screening list as of ' + esc(SUP.listDate || 'not loaded') + '. Matches are leads for an analyst to verify, not findings.</div></div>';
+    return '<div class="sec stx-supply"><h4>Supply chain · Survey Detector</h4>' + out + '</div>';
+  }
+
   var busy = false;
   function decorateIntel() {
     if (busy) return; busy = true;
@@ -163,6 +223,14 @@
         var node = div.firstChild;
         if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(node, anchor.nextSibling);
         else (el.querySelector('.scroll') || el).appendChild(node);
+      }
+    }
+    if (el && !el.querySelector('.stx-supply')) {
+      var sh = supplySection(), after = el.querySelector('.stx-x');
+      if (sh) {
+        var d2 = document.createElement('div'); d2.innerHTML = sh;
+        if (after && after.parentNode) after.parentNode.insertBefore(d2.firstChild, after.nextSibling);
+        else (el.querySelector('.scroll') || el).appendChild(d2.firstChild);
       }
     }
     drawRoutes(); writeHash();
@@ -265,6 +333,60 @@
     el.appendChild(div);
   }
   new MutationObserver(decorateFleet).observe($('fleet'), { childList: true });
+
+  /* ---------- Entities tab: who is behind the surveys ---------- */
+  (function entitiesTab() {
+    var tabs = document.querySelector('.pane.left .tabs'), host = document.querySelector('.pane.left');
+    if (!SUP || !tabs || !host) return;
+    var ents = SUP.entities || [];
+    var btn = document.createElement('button');
+    btn.className = 'tab'; btn.id = 'tab-entities'; btn.type = 'button'; btn.setAttribute('role', 'tab'); btn.setAttribute('aria-selected', 'false');
+    btn.innerHTML = 'Entities<span class="ct" id="ct-entities">' + ents.length + '</span>';
+    tabs.appendChild(btn);
+    var pane = document.createElement('div');
+    pane.id = 'left-entities'; pane.className = 'pane hide'; pane.style.flex = '1';
+    pane.innerHTML = '<div class="tools"><span class="muted" style="font-size:11.5px">Parent companies and owners behind the ships, listed entities first.</span>' +
+      '<button class="tbtn" type="button" id="ent-csv" style="height:26px;font-size:11px">Download CSV</button></div><div class="scroll" id="entities"></div>';
+    host.appendChild(pane);
+    function p1(r) { return r.events.filter(function (id) { var e = A.EVI[id]; return e && (e.tier === 'P1' || e.tier === 'P2'); }).length; }
+    var ROLE = { ship: 'ship', owner: 'owner', parent: 'parent', ultimate_owner: 'ultimate owner' };
+    function lists(r) {      /* each chip in its own level's colour, saying which link of the chain it is about */
+      return r.chips.map(function (c) {
+        var about = c.matched === r.kind ? '' : ' · ' + (ROLE[c.matched] || c.matched);
+        return '<span class="stx-hit ' + esc(c.level) + '" title="' + esc(LEVEL[c.level] || c.level) + '">' + esc(c.list) + esc(about) + '</span>';
+      }).join('');
+    }
+    $('entities').innerHTML = ents.length ? ents.map(function (r, i) {
+      return '<div class="stx-ent" data-ent="' + i + '"><span class="nm">' + esc(r.name) + '</span>' +
+        (r.state_owned ? '<span class="stx-badge">state-owned</span>' : '') + (r.country ? '<span class="stx-badge">' + esc(r.country) + '</span>' : '') +
+        '<span class="sub">' + (r.kind === 'parent' ? 'parent company' : 'owner') + (r.best ? ' · ' + esc(LEVEL[r.best]) : ' · no list match') + '</span>' +
+        (r.chips.length ? '<div>' + lists(r) + '</div>' : '') +
+        '<span class="nums">' + r.ships.length + ' ship' + (r.ships.length === 1 ? '' : 's') + ' · ' + r.detections + ' detection' + (r.detections === 1 ? '' : 's') + ' · ' + p1(r) + ' P1–P2</span>' +
+        (r.minerals.length ? '<span class="sub">Minerals surveyed: ' + esc(r.minerals.join(', ')) + '</span>' : '') +
+        '<div class="ships">' + r.ships.map(function (vid) { return '<button type="button" data-vid="' + esc(vid) + '">' + esc((V[vid] || {}).name || vid) + '</button>'; }).join('') + '</div></div>';
+    }).join('') : '<div class="empty">No owners known for these ships.</div>';
+    function show(on) {
+      btn.setAttribute('aria-selected', on ? 'true' : 'false'); pane.classList.toggle('hide', !on);
+      if (on) { $('tab-fleet').setAttribute('aria-selected', 'false'); $('tab-alerts').setAttribute('aria-selected', 'false');
+        $('left-fleet').classList.add('hide'); $('left-alerts').classList.add('hide'); }
+    }
+    btn.addEventListener('click', function () { show(true); });
+    ['tab-fleet', 'tab-alerts'].forEach(function (id) { $(id).addEventListener('click', function () { show(false); }); });
+    $('entities').addEventListener('click', function (e) {
+      var t = e.target, vid = t && t.getAttribute && t.getAttribute('data-vid');
+      if (vid) { if (V[vid]) A.focusVessel(vid, null, true); return; }
+      var row = t && t.closest && t.closest('.stx-ent'); if (row) row.classList.toggle('open');
+    });
+    function q(x) { x = String(x == null ? '' : x); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }
+    $('ent-csv').addEventListener('click', function () {
+      var head = 'name,kind,country,state_owned,lists,best_match,ships,detections,p1_p2,minerals';
+      var rows = ents.map(function (r) {
+        return [r.name, r.kind, r.country || '', r.state_owned === true ? 'yes' : r.state_owned === false ? 'no' : '', r.lists.join('; '), r.best || '',
+                r.ships.map(function (v) { return (V[v] || {}).name || v; }).join('; '), r.detections, p1(r), r.minerals.join('; ')].map(q).join(',');
+      });
+      download('seatrace_entities.csv', [head].concat(rows).join('\n'));
+    });
+  })();
 
   /* ---------- start ---------- */
   applyLayers(); decorateFleet(); decorateIntel();

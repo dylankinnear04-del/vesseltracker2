@@ -67,6 +67,13 @@ STATUS_FILE = LIBRARY / "gfw_status.json"     # last successful track pull, and 
 OUTAGES: list[str] = []                       # this run's GFW outage messages (see fetch)
 
 
+SCREENING_URL = "https://data.trade.gov/downloadable_consolidated_screening_list/v1/consolidated.csv"
+SCREENING_FILE = LIBRARY / "screening_list.csv.gz"    # US Consolidated Screening List: companies and vessels
+SCREENING_META = LIBRARY / "screening_list.json"      # when it was downloaded, and how many rows
+SCREENING_COLUMNS = ["name", "alt_names", "source", "programs", "start_date", "source_list_url",
+                     "source_information_url", "type", "call_sign", "vessel_flag", "ids"]
+
+
 class GFWUnavailable(Exception):
     """GFW's service is down or overloaded (not our request): keep what downloaded and try again next week."""
 
@@ -201,6 +208,39 @@ def fetch(tok: str, start: dt.date, end: dt.date, label: str, **query) -> pd.Dat
         print(f"  {label} {a} .. {b - dt.timedelta(days=1)}: {len(got):,} vessel-hours "
               f"({time.time() - t0:.0f}s)", flush=True)
     return pd.DataFrame(rows)
+
+
+def slim_screening(df: pd.DataFrame) -> pd.DataFrame:
+    """Companies and vessels only (the BIS lists leave type blank, so blank stays), and the columns we use."""
+    df = df.reindex(columns=SCREENING_COLUMNS).fillna("")
+    return df[~df["type"].isin(["Individual", "Aircraft"])].reset_index(drop=True)
+
+
+def fetch_screening() -> bool:
+    """Download the US Consolidated Screening List into library/screening_list.csv.gz (no GFW token needed).
+    On failure the previous copy stays and a warning is shown."""
+    import gzip
+    import io
+    try:
+        req = urllib.request.Request(SCREENING_URL, headers={"User-Agent": "SurveyDetector/1.0 (research)"})
+        raw = urllib.request.urlopen(req, timeout=300).read()
+        df = slim_screening(pd.read_csv(io.BytesIO(raw), dtype=str))
+        if not len(df) or (df["name"].str.strip() == "").mean() > 0.1:
+            raise ValueError("the list has no usable names (did its columns change?)")
+        try:
+            previous = len(pd.read_csv(SCREENING_FILE, dtype=str))
+        except Exception:
+            previous = 0
+        if previous and len(df) < 0.5 * previous:
+            raise ValueError(f"only {len(df):,} rows against {previous:,} last time")
+    except Exception as exc:          # network, HTTP or parse error: keep last week's copy
+        print(f"::warning::Screening list not updated, keeping the previous copy ({type(exc).__name__}: {exc})")
+        return False
+    SCREENING_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SCREENING_FILE.write_bytes(gzip.compress(df.to_csv(index=False).encode(), compresslevel=9, mtime=0))
+    SCREENING_META.write_text(json.dumps({"fetched": dt.date.today().isoformat(), "rows": len(df)}) + "\n")
+    print(f"Screening list: {len(df):,} companies and vessels -> {SCREENING_FILE.name}")
+    return True
 
 
 def write_status(key: str, error: str | None, today: dt.date | None = None) -> None:
@@ -437,6 +477,8 @@ def main():
                          "for every library ship, into library/gfw_vessel_info.csv and gfw_events.csv")
     ap.add_argument("--group-only", action="store_true",
                     help="with --watchlist and --vessel-group: skip the seismic-class pull")
+    ap.add_argument("--screening", action="store_true",
+                    help="instead of tracks: refresh library/screening_list.csv.gz (US Consolidated Screening List)")
     ap.add_argument("--status-key", default="",
                     help="name of this pull in library/gfw_status.json (default: mining with --watchlist, else china)")
     args = ap.parse_args()
@@ -447,6 +489,9 @@ def main():
     else:   # first day of the month, args.months calendar months back (counting the current one)
         k = end.year * 12 + end.month - 1 - (args.months - 1)
         start = dt.date(k // 12, k % 12 + 1, 1)
+    if args.screening:
+        fetch_screening()
+        return
     tok = token()
     if args.enrich:
         enrich(tok, start, end)

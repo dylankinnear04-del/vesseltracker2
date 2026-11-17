@@ -85,3 +85,8 @@ def test_console_page_opens_from_prebuilt_file(prebuilt, monkeypatch):
     monkeypatch.setattr(data, "_console_blob", no_run)
     at = open_page("views/console.py", {"group": "mining", "time": "6m"})
     assert not at.exception and "SURVEY-X-20260501" in _console_html(at)
+
+
+def test_stamp_includes_supply_chain_inputs():
+    names = {p.name for p in data.stamp_inputs()}
+    assert {"supply_chain.py", "screening_list.csv.gz", "entity_links.csv", "mineral_import_reliance.csv"} <= names
