@@ -24,6 +24,7 @@ DRIVER = """<script>
   setTimeout(function(){   /* let start-up animations (a restored link's fly-to) finish first */
   try{
     var M=window.SEATRACE&&window.SEATRACE.map;
+    out.layersOpen=!!($('layers')&&$('layers').open); if(out.layersOpen) window.__errors.push('Layers panel open at start (covers the map)');
     if(M){ out.startZoom=M.getZoom(); out.hashAtStart=(function(){try{return window.top.location.hash}catch(e){return location.hash}})();
       M.setView([10,-170],3,{animate:false}); M.fire('moveend');                    /* pan west past the old -150 lock */
       var lng=M.getCenter().lng; out.panOk=Math.abs((((lng+170)%360)+360)%360)<1;  /* same place on the globe, not pulled back */

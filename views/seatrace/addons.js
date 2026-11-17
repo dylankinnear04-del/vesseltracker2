@@ -444,6 +444,7 @@
 
   /* ---------- start ---------- */
   var q = readHash();               /* before anything is written: only a link someone opened, not our own default */
+  if ($('layers')) $('layers').open = false;   /* Layers starts closed so the map is clear; one click opens it */
   applyLayers(); decorateFleet(); decorateIntel();
   if (q.e && A.EVI[q.e]) { A.focusEvent(q.e, false); map.setView(A.EVI[q.e].center, 6); acted = true; writeHash(); }
   else if (q.v && V[q.v]) { A.focusVessel(q.v, null, false); var lp = V[q.v].pts[V[q.v].pts.length - 1]; if (lp) map.setView([lp.lat, lp.lon], 5); acted = true; writeHash(); }
