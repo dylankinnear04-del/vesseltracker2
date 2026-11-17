@@ -166,3 +166,68 @@ def test_long_catalog_name_is_not_treated_as_truncated():
 def test_truncated_registry_owner_prefix_matches_in_chain(lst):
     c = sc.ship_chain(ship(), "CHINA NATIONAL OFFSHORE OIL CO", LINKS, lst)
     assert any(h["list"] == "CMIC" and h["level"] == "likely" for h in c["hits"])
+
+
+# ---------------------------------------------------------------- final review fixes
+def test_verified_list_does_not_promote_possible_hits():
+    lst = _list_of(("CHINA OILFIELD SERVICE GROUP", "Non-SDN Chinese Military-Industrial Complex Companies List (CMIC) - Treasury Department"))
+    hits = sc.screen("CHINA OILFIELD SERVICES", lst, {"CMIC"})
+    assert hits and all(h["level"] == "possible" for h in hits)
+
+
+def test_verified_list_promotes_only_the_role_it_speaks_for():
+    lst = _list_of(("CHINA OILFIELD SERVICES", "Non-SDN Chinese Military-Industrial Complex Companies List (CMIC) - Treasury Department"))
+    c = sc.ship_chain(ship(), "CHINA OILFIELD SERVICES", LINKS, lst)       # links row has a parent: CNOOC
+    owner_hits = [h for h in c["hits"] if h["matched"] == "owner"]
+    assert owner_hits and all(h["level"] == "likely" for h in owner_hits)
+
+
+def test_link_needs_whole_words_and_never_matches_a_longer_row_from_a_short_name():
+    assert sc._link_for("China Oilfield", LINKS) is None
+    assert sc._link_for("CHINA GOVT", LINKS) is None
+    assert sc._link_for("China Oilfield Services Ltd", LINKS)["parent"] == "China National Offshore Oil Corporation"
+    assert sc._link_for("SINOPEC OFFSHORE OILFIELD SERV", LINKS, truncated=True) is not None
+
+
+def test_longest_link_row_wins():
+    import pandas as pd
+    links = pd.concat([pd.DataFrame([{"match_name": "CHINA GOVT", "parent": "Generic", "ultimate_owner": "", "state_owned": "yes",
+                                      "country": "CHN", "confirmed_lists": "", "note": "", "source": ""}]),
+                       pd.read_csv(Path(__file__).resolve().parents[1] / "reference_data" / "entity_links.csv", dtype=str)]).fillna("")
+    import io
+    buf = io.StringIO(); links.to_csv(buf, index=False); buf.seek(0)
+    links = sc.load_links(buf)
+    assert sc._link_for("CHINA GOVT POLAR RESEARCH INSTITUTE", links)["match_name"] == "CHINA GOVT POLAR RESEARCH"
+
+
+def test_entities_keep_each_hits_own_level_and_role(lst):
+    owner_only = sc.ship_chain(ship("Gelendzhik", operator="Yuzhmorgeologiya JSC", flag="Russia"), "", LINKS, lst)
+    rows = sc.entities({"g": owner_only}, [], {})
+    chips = rows[0]["chips"]
+    assert {(c["list"], c["matched"]) for c in chips} >= {("SDN", "owner")}
+    assert all({"list", "level", "matched"} <= set(c) for c in chips)
+
+
+def test_only_web_links_are_kept():
+    lst = _list_of(("EVIL CORP", "Specially Designated Nationals (SDN) - Treasury Department"))
+    lst.loc[0, "source_information_url"] = "javascript:alert(1)"
+    assert sc.screen("EVIL CORP", lst)[0]["url"] == ""
+    assert sc.safe_url("https://x.gov/a") == "https://x.gov/a" and sc.safe_url("javascript:alert(1)") == ""
+
+
+def test_vessel_name_only_match_is_possible():
+    import io
+    import pandas as pd
+    row = {c: "" for c in sc.LIST_COLUMNS}
+    buf = io.StringIO()
+    pd.DataFrame([dict(row, name="STAR", type="Vessel", source="Specially Designated Nationals (SDN) - Treasury Department",
+                       ids="Vessel Registration Identification, IMO 9999999")]).to_csv(buf, index=False)
+    buf.seek(0)
+    v = sc.load_list(buf)
+    assert [h["level"] for h in sc.ship_chain(ship("Star"), "", LINKS, v)["ship_hits"]] == ["possible"]
+    assert [h["level"] for h in sc.ship_chain(ship("Star", imo="9999999"), "", LINKS, v)["ship_hits"]] == ["likely"]
+
+
+def test_short_one_word_names_are_possible_at_most():
+    lst = _list_of(("OCEAN INC.", "Specially Designated Nationals (SDN) - Treasury Department"))
+    assert [h["level"] for h in sc.screen("Ocean Co Ltd", lst)] == ["possible"]

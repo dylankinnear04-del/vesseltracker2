@@ -69,6 +69,7 @@ OUTAGES: list[str] = []                       # this run's GFW outage messages (
 
 SCREENING_URL = "https://data.trade.gov/downloadable_consolidated_screening_list/v1/consolidated.csv"
 SCREENING_FILE = LIBRARY / "screening_list.csv.gz"    # US Consolidated Screening List: companies and vessels
+SCREENING_META = LIBRARY / "screening_list.json"      # when it was downloaded, and how many rows
 SCREENING_COLUMNS = ["name", "alt_names", "source", "programs", "start_date", "source_list_url",
                      "source_information_url", "type", "call_sign", "vessel_flag", "ids"]
 
@@ -224,13 +225,20 @@ def fetch_screening() -> bool:
         req = urllib.request.Request(SCREENING_URL, headers={"User-Agent": "SurveyDetector/1.0 (research)"})
         raw = urllib.request.urlopen(req, timeout=300).read()
         df = slim_screening(pd.read_csv(io.BytesIO(raw), dtype=str))
-        if not len(df):
-            raise ValueError("empty list")
+        if not len(df) or (df["name"].str.strip() == "").mean() > 0.1:
+            raise ValueError("the list has no usable names (did its columns change?)")
+        try:
+            previous = len(pd.read_csv(SCREENING_FILE, dtype=str))
+        except Exception:
+            previous = 0
+        if previous and len(df) < 0.5 * previous:
+            raise ValueError(f"only {len(df):,} rows against {previous:,} last time")
     except Exception as exc:          # network, HTTP or parse error: keep last week's copy
         print(f"::warning::Screening list not updated, keeping the previous copy ({type(exc).__name__}: {exc})")
         return False
     SCREENING_FILE.parent.mkdir(parents=True, exist_ok=True)
     SCREENING_FILE.write_bytes(gzip.compress(df.to_csv(index=False).encode(), compresslevel=9, mtime=0))
+    SCREENING_META.write_text(json.dumps({"fetched": dt.date.today().isoformat(), "rows": len(df)}) + "\n")
     print(f"Screening list: {len(df):,} companies and vessels -> {SCREENING_FILE.name}")
     return True
 

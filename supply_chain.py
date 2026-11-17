@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 LIST_FILE = HERE / "library" / "screening_list.csv.gz"
 LINKS_FILE = HERE / "reference_data" / "entity_links.csv"
 RELIANCE_FILE = HERE / "reference_data" / "mineral_import_reliance.csv"
+LIST_META = HERE / "library" / "screening_list.json"      # {"fetched": "YYYY-MM-DD", "rows": n}, written with the list
 
 LIST_COLUMNS = ["name", "alt_names", "source", "programs", "start_date", "source_list_url",
                 "source_information_url", "type", "call_sign", "vessel_flag", "ids"]
@@ -63,19 +64,27 @@ def load_list(path: Path = LIST_FILE) -> pd.DataFrame:
     return df
 
 
+def safe_url(url: str) -> str:
+    """Only plain web links reach the page (no javascript: or data: URLs from list or links text)."""
+    u = str(url or "").strip()
+    return u if re.match(r"^https?://", u, re.I) else ""
+
+
 def _hit(row, score: float, level: str) -> dict:
     return {"list": short_list(row["source"]), "source": row["source"], "program": row["programs"],
             "entry": row["name"], "score": round(score, 3), "level": level,
-            "url": row["source_information_url"] or row["source_list_url"], "date": row["start_date"]}
+            "url": safe_url(row["source_information_url"]) or safe_url(row["source_list_url"]), "date": row["start_date"]}
 
 
 def screen(name: str, lst: pd.DataFrame, confirmed: set[str] | frozenset = frozenset(),
            truncated: bool = False) -> list[dict]:
     """List entries matching a company name: likely (exact, other name, or - for a name the GFW registry cut
-    short, truncated=True - a prefix), possible (similar), confirmed (on a list the team verified)."""
+    short, truncated=True - a prefix), possible (similar, or a short one-word name), confirmed (a likely hit on
+    a list the team verified for this name in entity_links.csv)."""
     q = normalise(name)
     if len(q) < MIN_LEN or not len(lst):
         return []
+    generic = " " not in q and len(q) < 6        # "OCEAN", "WORLD": too common to call a match likely
     starts = {w[:3] for w in q.split()}
     hits = []
     for _, row in lst[lst["words"].map(lambda ws: bool(ws & starts))].iterrows():
@@ -89,8 +98,10 @@ def screen(name: str, lst: pd.DataFrame, confirmed: set[str] | frozenset = froze
             if score < POSSIBLE:
                 continue
             level = "possible"
+        if generic:
+            level = "possible"
         hit = _hit(row, score, level)
-        if hit["list"] in confirmed:
+        if level == "likely" and hit["list"] in confirmed:
             hit["level"] = "confirmed"
         hits.append(hit)
     order = {"confirmed": 0, "likely": 1, "possible": 2}
@@ -116,19 +127,28 @@ def load_links(path: Path = LINKS_FILE) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def _link_for(owner: str, links: pd.DataFrame):
+def _link_for(owner: str, links: pd.DataFrame, truncated: bool = False):
+    """The links row for an owner: exact name, else the longest row whose whole words begin the owner's name;
+    a row longer than the owner's name only when the registry cut that name short (truncated)."""
     q = normalise(owner)
     if not q or not len(links):
         return None
+    best = None
     for _, r in links.iterrows():
         n = r["norm"]
-        if q == n or (min(len(q), len(n)) >= MIN_PREFIX and (q.startswith(n) or n.startswith(q))):
+        if not n:
+            continue
+        if q == n:
             return r
-    return None
+        ok = (len(n) >= MIN_PREFIX and q.startswith(n + " ")) or (truncated and len(q) >= MIN_PREFIX and n.startswith(q))
+        if ok and (best is None or len(n) > len(best["norm"])):
+            best = r
+    return best
 
 
 def _vessel_hits(ship: dict, lst: pd.DataFrame) -> list[dict]:
-    """Listed vessels with this ship's IMO number or exactly its name (ship names never match companies)."""
+    """Listed vessels with this ship's IMO number (likely) or only its exact name (possible: names repeat);
+    ship names never match companies."""
     if not len(lst):
         return []
     v = lst[lst["type"] == "Vessel"]
@@ -136,8 +156,10 @@ def _vessel_hits(ship: dict, lst: pd.DataFrame) -> list[dict]:
     q = normalise(ship.get("name", ""))
     out = []
     for _, row in v.iterrows():
-        if (len(imo) == 7 and f"IMO {imo}" in row["ids"]) or (len(q) >= MIN_LEN and q in [row["norm"], *row["norm_alts"]]):
+        if len(imo) == 7 and f"IMO {imo}" in row["ids"]:
             out.append(_hit(row, 1.0, "likely"))
+        elif len(q) >= MIN_LEN and q in [row["norm"], *row["norm_alts"]]:
+            out.append(_hit(row, 1.0, "possible"))
     return out
 
 
@@ -150,23 +172,26 @@ def ship_chain(ship: dict, registry_owner: str, links: pd.DataFrame, lst: pd.Dat
         owner, src = str(ship["operator"]).strip(), "catalog"
     else:
         notes.append("Owner unknown: no owner in the GFW registry or the ship catalog")
-    link = _link_for(owner, links) if owner else None
+    cut = src == "GFW registry" and len(owner or "") >= TRUNCATED
+    link = _link_for(owner, links, truncated=cut) if owner else None
     parent = (link["parent"] or None) if link is not None else None
     ultimate = (link["ultimate_owner"] or None) if link is not None else None
     verified = [x.strip() for x in link["confirmed_lists"].split(";") if x.strip()] if link is not None else []
     hits, seen = [], set()
+    speaks_for = "parent" if parent else "owner"           # the entity the links row's verified lists are about
     for who, name in (("owner", owner), ("parent", parent), ("ultimate_owner", ultimate)):
-        cut = who == "owner" and src == "GFW registry" and len(name or "") >= TRUNCATED
-        for h in screen(name, lst, set(verified), truncated=cut) if name else []:
+        conf = set(verified) if who == speaks_for else set()
+        for h in screen(name, lst, conf, truncated=cut and who == "owner") if name else []:
             if (h["list"], h["entry"]) not in seen:
                 seen.add((h["list"], h["entry"]))
                 hits.append({**h, "matched": who})
     state = {"yes": True, "no": False}.get(link["state_owned"].strip().lower()) if link is not None else None
     return {"ship_hits": _vessel_hits(ship, lst), "owner": owner, "owner_source": src, "parent": parent,
             "ultimate_owner": ultimate, "state_owned": state, "country": (link["country"] or None) if link is not None else None,
-            "verified_lists": verified, "hits": hits, "notes": notes,
+            "verified_lists": verified, "verified_for": speaks_for if verified else None, "hits": hits, "notes": notes,
             "link_note": (link["note"] or None) if link is not None else None,
-            "link_source": (link["source"] or None) if link is not None else None}
+            "link_source": (link["source"] or None) if link is not None else None,
+            "link_url": safe_url(str(link["source"]).split(" ; ")[0]) if link is not None else ""}
 
 
 # ============================================================ area -> contract -> minerals -> processing
@@ -223,10 +248,22 @@ def area_chain(event: dict, reliance: pd.DataFrame, ree_sites: pd.DataFrame) -> 
 LEVEL_ORDER = {"confirmed": 0, "likely": 1, "possible": 2, None: 3}
 
 
+def chips(chain: dict) -> list[dict]:
+    """Every list hit for a ship's chain, each with its own level and the link it is about (ship, owner,
+    parent, ultimate_owner), team-verified lists included."""
+    out = [{"list": h["list"], "level": h["level"], "matched": h["matched"]} for h in chain["hits"]]
+    out += [{"list": h["list"], "level": h["level"], "matched": "ship"} for h in chain["ship_hits"]]
+    out += [{"list": l, "level": "confirmed", "matched": chain["verified_for"]} for l in chain["verified_lists"]]
+    best = {}
+    for c in out:
+        k = (c["list"], c["matched"])
+        if k not in best or LEVEL_ORDER[c["level"]] < LEVEL_ORDER[best[k]["level"]]:
+            best[k] = c
+    return sorted(best.values(), key=lambda c: (LEVEL_ORDER[c["level"]], c["list"], c["matched"]))
+
+
 def _best(chain: dict):
-    if chain["verified_lists"]:
-        return "confirmed"
-    levels = [h["level"] for h in chain["hits"] + chain["ship_hits"]]
+    levels = [c["level"] for c in chips(chain)]
     return min(levels, key=lambda lv: LEVEL_ORDER[lv]) if levels else None
 
 
@@ -240,9 +277,12 @@ def entities(ships: dict[str, dict], events: list[dict], areas: dict[str, dict])
             continue
         r = rows.setdefault(name, {"name": name, "kind": "parent" if c["parent"] else "owner", "country": c["country"],
                                    "state_owned": c["state_owned"], "ultimate_owner": c["ultimate_owner"],
-                                   "ships": [], "events": [], "lists": set(), "minerals": set(), "best": None})
+                                   "ships": [], "events": [], "chips": {}, "minerals": set(), "best": None})
         r["ships"].append(vid)
-        r["lists"] |= {h["list"] for h in c["hits"] + c["ship_hits"]} | set(c["verified_lists"])
+        for ch in chips(c):
+            k = (ch["list"], ch["matched"])
+            if k not in r["chips"] or LEVEL_ORDER[ch["level"]] < LEVEL_ORDER[r["chips"][k]["level"]]:
+                r["chips"][k] = ch
         b = _best(c)
         if LEVEL_ORDER[b] < LEVEL_ORDER[r["best"]]:
             r["best"] = b
@@ -254,7 +294,8 @@ def entities(ships: dict[str, dict], events: list[dict], areas: dict[str, dict])
             rows[name]["minerals"] |= {m["name"] for m in (areas.get(e["id"]) or {}).get("minerals", [])}
     out = []
     for r in rows.values():
-        r.update(ships=sorted(r["ships"]), events=sorted(r["events"]), lists=sorted(r["lists"]),
+        ch = sorted(r["chips"].values(), key=lambda c: (LEVEL_ORDER[c["level"]], c["list"], c["matched"]))
+        r.update(ships=sorted(r["ships"]), events=sorted(r["events"]), chips=ch, lists=sorted({c["list"] for c in ch}),
                  minerals=sorted(r["minerals"]), detections=len(r["events"]))
         out.append(r)
     return sorted(out, key=lambda r: (LEVEL_ORDER[r["best"]], -r["detections"], r["name"]))

@@ -609,9 +609,12 @@ def supply_extras(blob: dict, lib: pd.DataFrame) -> dict:
                 "flag": v.get("country", ""), "operator": row.get("operator", "") if row is not None else ""}
         ships[v["id"]] = sc.ship_chain(ship, owner_of.get(str(v.get("mmsi")), ""), links, lst)
     areas = {e["id"]: sc.area_chain(e, reliance, ree) for e in blob["events"]}
-    dates = [d for d in lst["start_date"] if d] if len(lst) else []
+    try:      # the day the list was downloaded (gfw_fetch.py --screening), not the newest designation in it
+        fetched = json.loads(sc.LIST_META.read_text()).get("fetched") if len(lst) else None
+    except (FileNotFoundError, ValueError):
+        fetched = None
     return {"ships": ships, "areas": areas, "entities": sc.entities(ships, blob["events"], areas),
-            "listDate": max(dates)[:10] if dates else None}
+            "listDate": fetched}
 
 
 def add_extras(blob: dict, res: dict, lib: pd.DataFrame, station: dict | None = None,

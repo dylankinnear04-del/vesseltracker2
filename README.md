@@ -80,6 +80,23 @@ writes `library/gfw_vessel_info.csv` and `library/gfw_events.csv` (`gfw_fetch.py
 Watch items and documented events are hand-written in `reference_data/watch_items.csv` and
 `reference_data/reference_events.csv`.
 
+**Supply chain.** Each detection's panel has a *Supply chain* card: ship → owner (GFW registry, else the
+catalog's operator) → parent → ultimate owner, each screened against the US Consolidated Screening List
+(Entity List, OFAC SDN, Treasury CMIC, MEU and others), then area → ISA contract (contractor, sponsoring
+state) or seabed resource region → minerals with US net import reliance (USGS Mineral Commodity Summaries
+2026) → rare-earth processing sites. The *Entities* tab ranks the parent companies and owners behind the
+ships. Matches are leads for an analyst, never findings:
+- **Confirmed** — the team verified it in `reference_data/entity_links.csv` (`confirmed_lists`).
+- **Likely** — the same name (after removing legal forms like JSC, Ltd), another listed name, a listed
+  vessel's IMO number, or the start of a name the GFW registry cut short (~30 characters).
+- **Possible · verify** — a similar name (≥ 88 %), a ship matched by name only, or a short one-word name.
+
+To add what registries leave out, add a row to `reference_data/entity_links.csv`: `match_name` (the owner as
+the registry or catalog spells it), `parent`, `ultimate_owner`, `state_owned` (yes/no), `country` (ISO3),
+`confirmed_lists` (`;`-separated, e.g. `CMIC;Entity List;DoD 1260H`, only after checking the list), `note`
+and a `source` link. The weekly job refreshes `library/screening_list.csv.gz` (`gfw_fetch.py --screening`,
+no token needed; a failed or suspicious download keeps last week's copy).
+
 **Console data, built ahead of time.** Running the detector for a ship group and season takes about
 40 s and 1.4 GB, too slow for the first visitor. So the weekly job, and the *Build console data*
 workflow after every push to main, run `scripts/build_console_data.py` and commit `prebuilt/*.json.gz`

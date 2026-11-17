@@ -239,3 +239,12 @@ def test_supply_without_list_file(monkeypatch, tmp_path):
             "events": [{"id": "E", "vessel": "x", "zone": None, "nearZone": None, "nearZoneKm": None, "center": [0.0, 0.0]}]}
     s = sx.supply_extras(blob, data.library())
     assert s["listDate"] is None and all(c["hits"] == [] for c in s["ships"].values())
+
+
+def test_supply_list_date_is_the_download_date(monkeypatch, tmp_path):
+    import supply_chain
+    meta = tmp_path / "screening_list.json"
+    meta.write_text('{"fetched": "2026-11-12", "rows": 18264}')
+    monkeypatch.setattr(supply_chain, "LIST_META", meta)
+    blob = {"vessels": [], "events": []}
+    assert sx.supply_extras(blob, data.library())["listDate"] == "2026-11-12"

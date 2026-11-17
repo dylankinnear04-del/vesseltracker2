@@ -104,7 +104,7 @@ jobs:
           git add library/gfw_vessel_info.csv library/gfw_events.csv 2>/dev/null || true
           git add prebuilt 2>/dev/null || true
           git add library/gfw_status.json 2>/dev/null || true
-          git add library/screening_list.csv.gz 2>/dev/null || true
+          git add library/screening_list.csv.gz library/screening_list.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No new positions this week."
             exit 0

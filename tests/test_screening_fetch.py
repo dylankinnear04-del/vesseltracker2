@@ -54,3 +54,36 @@ def test_main_screening_flag_needs_no_token(monkeypatch):
     monkeypatch.setattr("sys.argv", ["gfw_fetch.py", "--screening"])
     gfw_fetch.main()
     assert calls == [1]
+
+
+def test_fetch_rejects_a_list_with_blank_names(tmp_path, monkeypatch):
+    import io
+    path = tmp_path / "screening_list.csv.gz"
+    path.write_bytes(b"old")
+    monkeypatch.setattr(gfw_fetch, "SCREENING_FILE", path)
+    raw = sample().rename(columns={"name": "entity_name"}).to_csv(index=False).encode()
+    monkeypatch.setattr(gfw_fetch.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(raw))
+    assert gfw_fetch.fetch_screening() is False and path.read_bytes() == b"old"
+
+
+def test_fetch_rejects_a_list_far_smaller_than_last_week(tmp_path, monkeypatch):
+    import io
+    path = tmp_path / "screening_list.csv.gz"
+    big = pd.concat([sample()] * 10)
+    path.write_bytes(gzip.compress(gfw_fetch.slim_screening(big).to_csv(index=False).encode()))
+    before = path.read_bytes()
+    monkeypatch.setattr(gfw_fetch, "SCREENING_FILE", path)
+    monkeypatch.setattr(gfw_fetch.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(sample().to_csv(index=False).encode()))
+    assert gfw_fetch.fetch_screening() is False and path.read_bytes() == before
+
+
+def test_fetch_records_the_download_date(tmp_path, monkeypatch):
+    import io
+    import json
+    path = tmp_path / "screening_list.csv.gz"
+    monkeypatch.setattr(gfw_fetch, "SCREENING_FILE", path)
+    monkeypatch.setattr(gfw_fetch, "SCREENING_META", tmp_path / "screening_list.json")
+    monkeypatch.setattr(gfw_fetch.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(sample().to_csv(index=False).encode()))
+    assert gfw_fetch.fetch_screening() is True
+    meta = json.loads((tmp_path / "screening_list.json").read_text())
+    assert meta["rows"] == 3 and len(meta["fetched"]) == 10

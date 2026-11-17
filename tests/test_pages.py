@@ -129,3 +129,9 @@ def test_console_has_supply_chain_code():
     from webapp import console
     html = console.assemble('{"events":[],"vessels":[]}')
     assert "stx-supply" in html and "tab-entities" in html and "ent-csv" in html
+
+
+def test_console_says_when_ships_were_not_screened():
+    from webapp import console
+    html = console.assemble('{"events":[],"vessels":[]}')
+    assert "have not been screened" in html and "function webUrl" in html and "r.chips" in html

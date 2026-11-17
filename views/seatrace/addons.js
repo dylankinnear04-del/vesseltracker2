@@ -164,10 +164,11 @@
   /* ---------- supply chain card ---------- */
   var SUP = X.supply || null;
   var LEVEL = { confirmed: 'Confirmed', likely: 'Likely', possible: 'Possible · verify' };
+  function webUrl(u) { u = String(u || ''); return /^https?:\/\//i.test(u) ? u : ''; }
   function hitChip(h) {
     var tip = h.entry + ' — ' + h.source + (h.program ? ' (' + h.program + ')' : '') + (h.date ? ', listed ' + h.date : '') + (h.score < 1 ? ', name similarity ' + Math.round(h.score * 100) + '%' : '');
     var inner = esc(LEVEL[h.level] || h.level) + ': ' + esc(h.list);
-    return h.url ? '<a class="stx-hit ' + esc(h.level) + '" href="' + esc(h.url) + '" target="_blank" rel="noopener" title="' + esc(tip) + '">' + inner + '</a>'
+    return webUrl(h.url) ? '<a class="stx-hit ' + esc(h.level) + '" href="' + esc(h.url) + '" target="_blank" rel="noopener" title="' + esc(tip) + '">' + inner + '</a>'
                  : '<span class="stx-hit ' + esc(h.level) + '" title="' + esc(tip) + '">' + inner + '</span>';
   }
   function hitsFor(c, who) {
@@ -188,9 +189,10 @@
       if (c.owner) out += '<div class="arrow">↓</div><div><span class="lab">Owner</span><b>' + esc(c.owner) + '</b> <span class="src">' + esc(c.owner_source) + '</span>' + hitsFor(c, 'owner') + (c.parent ? '' : verifiedHtml) + '</div>';
       if (c.parent) out += '<div class="arrow">↓</div><div><span class="lab">Parent</span><b>' + esc(c.parent) + '</b>' + (c.state_owned ? '<span class="stx-badge">state-owned' + (c.country ? ' · ' + esc(c.country) : '') + '</span>' : '') + hitsFor(c, 'parent') + verifiedHtml + '</div>';
       if (c.ultimate_owner && c.ultimate_owner !== c.parent) out += '<div class="arrow">↓</div><div><span class="lab">Ultimate owner</span><b>' + esc(c.ultimate_owner) + '</b>' + hitsFor(c, 'ultimate_owner') + '</div>';
-      if (!c.hits.length && !c.ship_hits.length && !c.verified_lists.length && c.owner) out += '<div class="src">No restricted-list match for the ship, owner or parents.</div>';
+      if (!SUP.listDate) out += '<div class="src">Screening list not loaded: this ship and its owners have not been screened.</div>';
+      else if (!c.hits.length && !c.ship_hits.length && !c.verified_lists.length && c.owner) out += '<div class="src">No restricted-list match for the ship, owner or parents.</div>';
       c.notes.forEach(function (n) { out += '<div class="src">' + esc(n) + '</div>'; });
-      if (c.link_note) out += '<div class="src">' + esc(c.link_note) + (c.link_source ? ' · <a href="' + esc(String(c.link_source).split(' ; ')[0]) + '" target="_blank" rel="noopener" style="color:var(--accent)">source</a>' : '') + '</div>';
+      if (c.link_note) out += '<div class="src">' + esc(c.link_note) + (webUrl(c.link_url) ? ' · <a href="' + esc(c.link_url) + '" target="_blank" rel="noopener" style="color:var(--accent)">source</a>' : '') + '</div>';
     }
     if (a) {
       out += '<div style="height:6px"></div>';
@@ -347,14 +349,18 @@
       '<button class="tbtn" type="button" id="ent-csv" style="height:26px;font-size:11px">Download CSV</button></div><div class="scroll" id="entities"></div>';
     host.appendChild(pane);
     function p1(r) { return r.events.filter(function (id) { var e = A.EVI[id]; return e && (e.tier === 'P1' || e.tier === 'P2'); }).length; }
-    function lists(r) {
-      return r.lists.map(function (l) { return '<span class="stx-hit ' + esc(r.best || 'possible') + '">' + esc(l) + '</span>'; }).join('');
+    var ROLE = { ship: 'ship', owner: 'owner', parent: 'parent', ultimate_owner: 'ultimate owner' };
+    function lists(r) {      /* each chip in its own level's colour, saying which link of the chain it is about */
+      return r.chips.map(function (c) {
+        var about = c.matched === r.kind ? '' : ' · ' + (ROLE[c.matched] || c.matched);
+        return '<span class="stx-hit ' + esc(c.level) + '" title="' + esc(LEVEL[c.level] || c.level) + '">' + esc(c.list) + esc(about) + '</span>';
+      }).join('');
     }
     $('entities').innerHTML = ents.length ? ents.map(function (r, i) {
       return '<div class="stx-ent" data-ent="' + i + '"><span class="nm">' + esc(r.name) + '</span>' +
         (r.state_owned ? '<span class="stx-badge">state-owned</span>' : '') + (r.country ? '<span class="stx-badge">' + esc(r.country) + '</span>' : '') +
         '<span class="sub">' + (r.kind === 'parent' ? 'parent company' : 'owner') + (r.best ? ' · ' + esc(LEVEL[r.best]) : ' · no list match') + '</span>' +
-        (r.lists.length ? '<div>' + lists(r) + '</div>' : '') +
+        (r.chips.length ? '<div>' + lists(r) + '</div>' : '') +
         '<span class="nums">' + r.ships.length + ' ship' + (r.ships.length === 1 ? '' : 's') + ' · ' + r.detections + ' detection' + (r.detections === 1 ? '' : 's') + ' · ' + p1(r) + ' P1–P2</span>' +
         (r.minerals.length ? '<span class="sub">Minerals surveyed: ' + esc(r.minerals.join(', ')) + '</span>' : '') +
         '<div class="ships">' + r.ships.map(function (vid) { return '<button type="button" data-vid="' + esc(vid) + '">' + esc((V[vid] || {}).name || vid) + '</button>'; }).join('') + '</div></div>';
