@@ -74,6 +74,13 @@ DRIVER = """<script>
         document.querySelector('[data-f="cable"]').click(); }
       if(!out.cableBadgeOk) window.__errors.push('cable badges do not match the flag');
       if(!out.cableFilterOk) window.__errors.push('cable filter: shows '+(shown||[]).length+', flagged '+out.cableFlagged); }
+    /* Ship overview: one card per selected ship; its port-call total matches the ship's calls */
+    if(AA){ var bad=[];
+      Object.keys(AA.V).forEach(function(id){ AA.focusVessel(id, null, false); if(window.ST_DECORATE) window.ST_DECORATE();
+        var cards=document.querySelectorAll('#intel .stx-overview'), pc=cards[0]&&cards[0].querySelector('[data-calls]');
+        var n=pc?+pc.getAttribute('data-calls'):-1;
+        if(cards.length!==1||n!==AA.V[id].calls.length) bad.push(id+':'+cards.length+'/'+n+'/'+AA.V[id].calls.length); });
+      out.overviewOk=bad.length===0; if(!out.overviewOk) window.__errors.push('ship overview: '+bad.slice(0,3).join(', ')); }
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
     ['vw-gallery','vw-timeline','vw-map','tab-alerts','tab-fleet'].forEach(click);

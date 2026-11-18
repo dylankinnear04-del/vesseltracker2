@@ -42,6 +42,7 @@
     '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}' +
     '.cbtag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help;margin-left:4px}' +
     '.cbbadge{display:inline-block;padding:0 4px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9px/14px var(--f-mono);letter-spacing:.05em;vertical-align:1px;cursor:help}' +
+    '.stx-overview .stx-ovrow{margin:3px 0 0;font-size:12px}.stx-overview .ptag{display:inline-block}' +
     '.sftag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#8d6e6333;color:#d7b9a8;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help}';
   document.head.appendChild(css);
 
@@ -247,10 +248,82 @@
     return '<div class="sec stx-supply"><h4>Supply chain · Survey Detector</h4>' + out + '</div>';
   }
 
+  /* ---------- Ship overview: ownership, port calls, areas worked, cable watch in one card ---------- */
+  var RANK = { confirmed: 3, likely: 2, possible: 1 };
+  function shipPortRows(v) {
+    var sp = (X.shipPorts || {})[v.id];
+    if (sp) return sp;
+    var by = {};                                   /* older data: group the ship's own calls by country */
+    (v.calls || []).forEach(function (c) {
+      var p = E.PORT[c.port] || {}, cc = p.cc || 'Unknown', g = by[cc] || (by[cc] = { country: cc, calls: 0, last: null, home: cc === v.country, ports: {} });
+      g.calls++; var t = (c.t0 - E.T_START) / E.H; if (g.last === null || t > g.last) g.last = t;
+      var q = g.ports[p.name] || (g.ports[p.name] = { name: p.name || '?', calls: 0, ree: '' }); q.calls++;
+    });
+    return Object.keys(by).map(function (k) { var g = by[k]; g.ports = Object.keys(g.ports).map(function (n) { return g.ports[n]; }).sort(function (a, b) { return b.calls - a.calls; }); return g; })
+      .sort(function (a, b) { return b.calls - a.calls; });
+  }
+  function overviewSection() {
+    var v = V[S.focus]; if (!v) return '';
+    var out = '', c = SUP && SUP.ships ? SUP.ships[v.id] : null;
+    /* ownership */
+    var own = '';
+    if (c) {
+      var chain = [c.owner, c.parent, c.ultimate_owner].filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+      var hits = (c.hits || []).concat(c.ship_hits || []), worst = null;
+      hits.forEach(function (h) { if (!worst || (RANK[h.level] || 0) > (RANK[worst.level] || 0)) worst = h; });
+      own = chain.length ? chain.map(esc).join(' → ') : 'Owner not known';
+      if ((c.verified_lists || []).length) own += ' <span class="stx-hit confirmed">Confirmed: ' + esc(c.verified_lists[0]) + '</span>';
+      else if (worst) own += ' ' + hitChip(worst);
+      else own += ' <span class="src">' + (SUP.listDate ? 'no restricted-list match' : 'not screened') + '</span>';
+    } else own = v.gfw && v.gfw.owner ? esc(v.gfw.owner) + ' <span class="src">registry owner</span>' : '<span class="src">Owner not known</span>';
+    out += '<div><span class="lab">Ownership</span>' + own + '</div>';
+    /* port calls by country */
+    var rows = shipPortRows(v), total = rows.reduce(function (s, g) { return s + g.calls; }, 0);
+    out += '<div data-calls="' + total + '"><span class="lab">Port calls · ' + total + '</span>' + (rows.length ? rows.map(function (g) {
+      var ree = g.ports.filter(function (q) { return q.ree; });
+      return '<div class="stx-ovrow"><b>' + esc(g.country) + '</b>' + (g.home ? ' <span class="stx-badge">home</span>' : '') + ' <span class="src">' + g.calls + ' call' + (g.calls > 1 ? 's' : '') +
+        (g.last !== null && g.last !== undefined ? ' · last ' + esc(A.fDs(E.T_START + g.last * E.H)) : '') + ' · ' + g.ports.slice(0, 3).map(function (q) { return esc(q.name); }).join(', ') + '</span>' +
+        (ree.length ? '<br><span class="stx-hit possible" title="' + esc(ree.map(function (q) { return q.name + ': ' + q.ree; }).join('; ')) + '">Rare-earth linked: ' + esc(ree.map(function (q) { return q.name; }).join(', ')) + '</span>' : '') + '</div>';
+    }).join('') : '<span class="src">No port calls in this window</span>') + '</div>';
+    /* areas worked */
+    var tiers = {}, mins = {};
+    v.events.forEach(function (e) {
+      tiers[e.tier] = (tiers[e.tier] || 0) + 1;
+      var a = SUP && SUP.areas ? SUP.areas[e.id] : null;
+      (a && a.minerals || []).forEach(function (m) { mins[m.name] = mins[m.name] || m.critical; });
+    });
+    var mlist = Object.keys(mins).sort(function (a, b) { return (mins[b] ? 1 : 0) - (mins[a] ? 1 : 0) || a.localeCompare(b); });
+    out += '<div><span class="lab">Areas worked</span>' + (v.events.length ? ['P1', 'P2', 'P3', 'P4'].filter(function (t) { return tiers[t]; }).map(function (t) { return '<span class="ptag ' + t + '">' + t + '</span> ' + tiers[t]; }).join(' · ') +
+      (mlist.length ? '<br><span class="src">Minerals: ' + mlist.map(function (m) { return esc(m) + (mins[m] ? ' (critical)' : ''); }).join(', ') + '</span>' : '') : '<span class="src">No detections</span>') + '</div>';
+    /* cable watch */
+    var aff = (X.cableAffinity || {})[v.id], eps = ((X.cableWatch || {})[v.id] || []).slice().sort(function (a, b) { return b.t0 - a.t0; });
+    if (aff || eps.length) {
+      var head = aff && aff.ratio !== null && aff.ratio !== undefined ? 'Stops on cables ' + aff.ratio + '× ' + (aff.ratio >= 1 ? 'more' : 'less') + ' than chance · ' + Math.round((aff.share_slow || 0) * 100) + '% of stopped time · ' + Math.round(aff.slow_on_h) + ' h' : 'Too little data to judge';
+      out += '<div><span class="lab">Cable watch</span>' + (aff && aff.flag ? '<span class="cbbadge">CABLE</span> ' : '') + (aff && aff.cableShip ? '<span class="src">Cable ship · likely maintenance</span> ' : '') + '<span class="src">' + esc(head) + '</span>' +
+        eps.slice(0, 6).map(function (ep) {
+          return '<div class="stx-ovrow">' + esc(A.fDs(E.T_START + ep.t0 * E.H)) + ' · ' + Math.round(ep.hours) + ' h ' + (ep.kind === 'dark' ? 'dark' : ep.kind) + ' on ' + esc((ep.cables[0] || {}).name || 'a cable') +
+            ' <button class="link" type="button" data-cwgo="' + ep.center[0] + ',' + ep.center[1] + '">Show</button></div>';
+        }).join('') + (eps.length > 6 ? '<span class="src">+ ' + (eps.length - 6) + ' more on the map (Layers ▸ Cable watch)</span>' : '') + '</div>';
+    }
+    return '<div class="sec stx-overview stx-chain"><h4>Ship overview · Survey Detector</h4>' + out + '</div>';
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target, g = t && t.getAttribute && t.getAttribute('data-cwgo');
+    if (g) { var p = g.split(','); S.layers.cablewatch = true; applyLayers(); map.setView([+p[0], +p[1]], 8); }
+  });
+
   var busy = false;
   function decorateIntel() {
     if (busy) return; busy = true;
     var el = $('intel');
+    if (el && S.focus && !el.querySelector('.stx-overview')) {
+      var ov = overviewSection(), idh = el.querySelector('.idhead');
+      if (ov) {
+        var d0 = document.createElement('div'); d0.innerHTML = ov;
+        if (idh && idh.parentNode) idh.parentNode.insertBefore(d0.firstChild, idh.nextSibling);
+        else (el.querySelector('.scroll') || el).insertBefore(d0.firstChild, (el.querySelector('.scroll') || el).firstChild);
+      }
+    }
     if (el && !el.querySelector('.stx-x')) {
       var html = extraSection();
       if (html) {
@@ -274,6 +347,7 @@
     busy = false;
   }
   new MutationObserver(function () { decorateIntel(); }).observe($('intel'), { childList: true });
+  window.ST_DECORATE = decorateIntel;
   document.addEventListener('click', function (e) {
     if (e.target && e.target.id === 'stx-copylink') { try { A.copy(window.top.location.href, 'Link'); } catch (err) { A.copy(location.href, 'Link'); } }
   });
