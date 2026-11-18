@@ -127,3 +127,104 @@ def landing_points() -> np.ndarray:
         return np.empty((0, 2))
     d = pd.read_csv(LANDINGS_FILE).dropna(subset=["lat", "lon"])
     return d[["lat", "lon"]].to_numpy(float)
+
+
+# ---------- cable watch -------------------------------------------------------------------------------------------
+
+def _km_between(lat1, lon1, lat2, lon2) -> np.ndarray:
+    return 2 * EARTH_KM * np.arcsin(np.clip(np.linalg.norm(_xyz(lat1, lon1) - _xyz(lat2, lon2), axis=1) / 2, 0, 1))
+
+
+def _prepare(track: pd.DataFrame, avoid: np.ndarray):
+    """Sorted fixes with speed (derived where missing), the cables near each, and whether each is 'on cable'."""
+    tr = track.dropna(subset=["time", "lat", "lon"]).sort_values("time").reset_index(drop=True)
+    lat, lon = tr["lat"].to_numpy(float), tr["lon"].to_numpy(float)
+    t = (tr["time"] - tr["time"].iloc[0]).dt.total_seconds().to_numpy() / 3600 if len(tr) else np.array([])
+    sog = tr["speed_kn"].to_numpy(float) if "speed_kn" in tr else np.full(len(tr), np.nan)
+    if len(tr) > 1 and np.isnan(sog).any():
+        km = _km_between(lat[:-1], lon[:-1], lat[1:], lon[1:])
+        kn = km / 1.852 / np.maximum(np.diff(t), 1e-6)
+        derived = np.concatenate([[kn[0]], np.fmin(kn[:-1], kn[1:]) if len(kn) > 1 else [], [kn[-1]]])[:len(tr)]
+        sog = np.where(np.isnan(sog), derived, sog)
+    near = _near_many(lat, lon, CABLE_KM) if len(tr) else []
+    on = np.array([bool(n) for n in near], bool)
+    avoid = np.asarray(avoid, float).reshape(-1, 2)
+    if len(avoid) and on.any():
+        tree = cKDTree(_xyz(avoid[:, 0], avoid[:, 1]))
+        d, _ = tree.query(_xyz(lat, lon))
+        on &= 2 * EARTH_KM * np.arcsin(np.clip(d / 2, 0, 1)) > PORT_KM
+    return tr, lat, lon, t, sog, near, on
+
+
+def _cables_of(near: list, idx) -> list:
+    best = {}
+    for i in idx:
+        for h in near[i]:
+            if h["id"] not in best or h["km"] < best[h["id"]]["km"]:
+                best[h["id"]] = h
+    return sorted(best.values(), key=lambda h: h["km"])[:MAX_LISTED]
+
+
+def watch(track: pd.DataFrame, avoid: np.ndarray, cable_ship: bool = False) -> list:
+    """Slow, stopped and dark episodes of one ship on a cable, away from ports and landings.
+
+    track: time, lat, lon, speed_kn (raw, not thinned). avoid: lat/lon of ports and cable landings.
+    Returns [{t0, t1, hours, kind, cables: [{id, name, km}], center: [lat, lon], cable_ship}] by time."""
+    tr, lat, lon, t, sog, near, on = _prepare(track, avoid)
+    out = []
+    slow = np.nonzero(on & (sog < SLOW_KN))[0]
+    runs, cur = [], []
+    for i in slow:
+        if cur and t[i] - t[cur[-1]] > MERGE_H:
+            runs.append(cur)
+            cur = []
+        cur.append(i)
+    if cur:
+        runs.append(cur)
+    for r in runs:
+        hours = t[r[-1]] - t[r[0]]
+        if hours < MIN_H:
+            continue
+        out.append({"t0": tr["time"].iloc[r[0]], "t1": tr["time"].iloc[r[-1]], "hours": round(float(hours), 1),
+                    "kind": "stopped" if np.median(sog[r]) < STOPPED_KN else "slow", "cables": _cables_of(near, r),
+                    "center": [round(float(np.mean(lat[r])), 4), round(float(np.mean(lon[r])), 4)],
+                    "cable_ship": bool(cable_ship)})
+    for i in np.nonzero(np.diff(t) > DARK_H)[0] if len(t) > 1 else []:
+        if not (on[i] or on[i + 1]):
+            continue
+        j = i if on[i] else i + 1
+        out.append({"t0": tr["time"].iloc[i], "t1": tr["time"].iloc[i + 1], "hours": round(float(t[i + 1] - t[i]), 1),
+                    "kind": "dark", "cables": _cables_of(near, [j]),
+                    "center": [round(float(lat[j]), 4), round(float(lon[j]), 4)], "cable_ship": bool(cable_ship)})
+    return sorted(out, key=lambda e: e["t0"])
+
+
+def crossing_hours(track: pd.DataFrame, avoid: np.ndarray) -> list:
+    """Hours of each pass over a cable at any speed (a run of on-cable fixes; one fix counts as 1 h)."""
+    _, _, _, t, _, _, on = _prepare(track, avoid)
+    out, start = [], None
+    for i, o in enumerate(on):
+        if o and start is None:
+            start = i
+        if start is not None and (not o or i == len(on) - 1):
+            last = i if o else i - 1
+            out.append(round(float(t[last] - t[start]) + 1.0, 1))
+            start = None
+    return out
+
+
+@lru_cache(maxsize=1)
+def _cable_mmsis() -> frozenset:
+    if not CLASSES_FILE.exists():
+        return frozenset()
+    d = pd.read_csv(CLASSES_FILE, dtype=str).fillna("")
+    keep = d["class"].str.upper().eq("CABLE")
+    if "cable_ship" in d:
+        keep |= d["cable_ship"].str.strip().str.lower().isin({"1", "true", "yes", "y"})
+    return frozenset(d.loc[keep, "mmsi"].str.strip())
+
+
+def is_cable_ship(name: str, ship_type: str, mmsi: str) -> bool:
+    """Cable layer / repair ship: CABLE in the name or ship type, or listed in vessel_classes.csv."""
+    text = f"{name or ''} {ship_type or ''}".upper().replace(" ", "")
+    return "CABLE" in text or str(mmsi or "").strip() in _cable_mmsis()
