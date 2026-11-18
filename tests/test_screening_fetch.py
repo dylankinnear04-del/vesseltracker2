@@ -1,6 +1,7 @@
 """gfw_fetch --screening: the weekly slim copy of the US Consolidated Screening List (no network in tests)."""
 import gzip
 import urllib.error
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -87,3 +88,14 @@ def test_fetch_records_the_download_date(tmp_path, monkeypatch):
     assert gfw_fetch.fetch_screening() is True
     meta = json.loads((tmp_path / "screening_list.json").read_text())
     assert meta["rows"] == 3 and len(meta["fetched"]) == 10
+
+
+def test_tests_never_write_the_real_meta_file(tmp_path, monkeypatch):
+    """A test that only redirects the list file must not overwrite library/screening_list.json."""
+    import io
+    real = Path(gfw_fetch.__file__).resolve().parent / "library" / "screening_list.json"
+    before = real.read_bytes() if real.exists() else None
+    monkeypatch.setattr(gfw_fetch, "SCREENING_FILE", tmp_path / "screening_list.csv.gz")
+    monkeypatch.setattr(gfw_fetch.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(sample().to_csv(index=False).encode()))
+    assert gfw_fetch.fetch_screening() is True
+    assert (real.read_bytes() if real.exists() else None) == before
