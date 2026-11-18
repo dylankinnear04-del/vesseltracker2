@@ -40,6 +40,9 @@
     '.stx-ent .nm{color:var(--ink);font-weight:600;font-size:12.5px}.stx-ent .sub{color:var(--ink-3);font-size:11px;display:block;margin-top:2px}' +
     '.stx-ent .ships{display:none;margin-top:6px;gap:3px}.stx-ent.open .ships{display:grid}.stx-ent .ships button{all:unset;cursor:pointer;color:var(--accent);font-size:12px}' +
     '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}' +
+    '.cbtag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help;margin-left:4px}' +
+    '.cbbadge{display:inline-block;padding:0 4px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9px/14px var(--f-mono);letter-spacing:.05em;vertical-align:1px;cursor:help}' +
+    '.stx-overview .stx-ovrow{margin:3px 0 0;font-size:12px}.stx-overview .ptag{display:inline-block}' +
     '.sftag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#8d6e6333;color:#d7b9a8;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help}';
   document.head.appendChild(css);
 
@@ -103,11 +106,41 @@
   var gSeafloor = L.tileLayer.wms('https://wms.gebco.net/mapserv', { layers: 'GEBCO_LATEST', format: 'image/png', pane: 'seafloor', opacity: 0.85, attribution: 'GEBCO Compilation Group, GEBCO Grid' });
   var EXTRA_LAYERS = [['routes', 'Port routes (selected survey)', 'dash:#5cc8ff'], ['pred', 'Predicted next lines', 'dash:#ff7ec3'],
                       ['regions', 'Seabed resource regions', 'linear-gradient(90deg,#1e88e5,#d81b60)'],
-                      ['seafloor', 'Seafloor (GEBCO)', 'linear-gradient(90deg,#0b2a4a,#3a7bb8,#a8d1e8)']];
+                      ['seafloor', 'Seafloor (GEBCO)', 'linear-gradient(90deg,#0b2a4a,#3a7bb8,#a8d1e8)'],
+                      ['cables', 'Submarine cables', 'line:#2ec4d6'], ['cablewatch', 'Cable watch (flagged ships)', 'dot:#ff5d5d']];
+  /* Submarine cables (TeleGeography; schematic routes) and cable-watch episodes */
+  var gCables = L.layerGroup(), gCableWatch = L.layerGroup();
+  (X.cables || []).forEach(function (c) {
+    var tip = '<b>' + esc(c.name) + '</b>' + (c.planned ? ' · planned' : '') + (c.rfs ? ' · in service ' + esc(c.rfs) : '') +
+      (c.owners ? '<br><span style="color:#a1b5c3">Owners: ' + esc(c.owners) + '</span>' : '') + (c.landings ? '<br><span style="color:#a1b5c3">Lands at: ' + esc(c.landings) + '</span>' : '');
+    OFFS.forEach(function (o) {
+      gCables.addLayer(L.polyline(c.c.map(function (l) { return l.map(function (q) { return [q[0], q[1] + o]; }); }),
+        { color: '#2ec4d6', weight: 1.2, opacity: c.planned ? 0.45 : 0.75, dashArray: c.planned ? '4 4' : null, stxCable: true }).bindTooltip(tip, { sticky: true }));
+    });
+  });
+  var CW_COL = { stopped: '#ff5d5d', slow: '#ffb347', dark: '#b48cff' };
+  function drawCableWatch() {
+    gCableWatch.clearLayers();
+    var cw = X.cableWatch || {}, norm = X.cableNorm || 1;
+    Object.keys(cw).forEach(function (vid) {
+      var v = V[vid], aff = (X.cableAffinity || {})[vid] || {};
+      if (!v || !(aff.flag || S.focus === vid)) return;
+      cw[vid].forEach(function (ep) {
+        var col = ep.cableShip ? '#9fb3c1' : CW_COL[ep.kind] || '#ffb347', c = ep.cables[0] || {};
+        var tip = '<b>' + esc(v.name) + '</b> · ' + Math.round(ep.hours) + ' h ' + (ep.kind === 'dark' ? 'dark (no AIS)' : ep.kind) + ' on ' + esc(c.name || 'a cable') +
+          '<br>' + A.fDs(E.T_START + ep.t0 * E.H) + ' → ' + A.fDs(E.T_START + ep.t1 * E.H) + ' · usual crossing ' + (Math.round(norm * 10) / 10) + ' h' +
+          (aff.ratio ? '<br>Stops on cables ' + aff.ratio + '× more than chance' : '') + (ep.cableShip ? '<br>Cable ship · likely maintenance' : '');
+        OFFS.forEach(function (o) {
+          gCableWatch.addLayer(L.circleMarker([ep.center[0], ep.center[1] + o], { radius: 5, color: col, weight: 1.5, fillColor: col, fillOpacity: 0.45 })
+            .bindTooltip(tip).on('click', function () { A.focusVessel(vid); }));
+        });
+      });
+    });
+  }
   (function layers() {
     var at = A.LAYERS.findIndex(function (l) { return l[0] === 'grat'; });
     A.LAYERS.splice.apply(A.LAYERS, [at < 0 ? A.LAYERS.length : at, 0].concat(EXTRA_LAYERS));
-    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false; S.layers.seafloor = false;
+    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false; S.layers.seafloor = false; S.layers.cables = false; S.layers.cablewatch = true; drawCableWatch();
     A.renderLayers();
     (X.pred || []).forEach(function (p) {
       OFFS.forEach(function (o) {
@@ -136,14 +169,14 @@
     });
   }
   function applyLayers() {
-    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions'], [gSeafloor, 'seafloor']].forEach(function (x) {
+    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions'], [gSeafloor, 'seafloor'], [gCables, 'cables'], [gCableWatch, 'cablewatch']].forEach(function (x) {
       if (S.layers[x[1]]) { if (!map.hasLayer(x[0])) x[0].addTo(map); } else map.removeLayer(x[0]);
     });
   }
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.getAttribute) return;
     var k = t.getAttribute('data-layer');
-    if (k === 'routes' || k === 'pred' || k === 'regions' || k === 'seafloor') setTimeout(applyLayers, 0);
+    if (k === 'routes' || k === 'pred' || k === 'regions' || k === 'seafloor' || k === 'cables' || k === 'cablewatch') setTimeout(applyLayers, 0);
   });
 
   /* ---------- assessment pane: likely target, ports, copy link ---------- */
@@ -215,10 +248,82 @@
     return '<div class="sec stx-supply"><h4>Supply chain · Survey Detector</h4>' + out + '</div>';
   }
 
+  /* ---------- Ship overview: ownership, port calls, areas worked, cable watch in one card ---------- */
+  var RANK = { confirmed: 3, likely: 2, possible: 1 };
+  function shipPortRows(v) {
+    var sp = (X.shipPorts || {})[v.id];
+    if (sp) return sp;
+    var by = {};                                   /* older data: group the ship's own calls by country */
+    (v.calls || []).forEach(function (c) {
+      var p = E.PORT[c.port] || {}, cc = p.cc || 'Unknown', g = by[cc] || (by[cc] = { country: cc, calls: 0, last: null, home: cc === v.country, ports: {} });
+      g.calls++; var t = (c.t0 - E.T_START) / E.H; if (g.last === null || t > g.last) g.last = t;
+      var q = g.ports[p.name] || (g.ports[p.name] = { name: p.name || '?', calls: 0, ree: '' }); q.calls++;
+    });
+    return Object.keys(by).map(function (k) { var g = by[k]; g.ports = Object.keys(g.ports).map(function (n) { return g.ports[n]; }).sort(function (a, b) { return b.calls - a.calls; }); return g; })
+      .sort(function (a, b) { return b.calls - a.calls; });
+  }
+  function overviewSection() {
+    var v = V[S.focus]; if (!v) return '';
+    var out = '', c = SUP && SUP.ships ? SUP.ships[v.id] : null;
+    /* ownership */
+    var own = '';
+    if (c) {
+      var chain = [c.owner, c.parent, c.ultimate_owner].filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+      var hits = (c.hits || []).concat(c.ship_hits || []), worst = null;
+      hits.forEach(function (h) { if (!worst || (RANK[h.level] || 0) > (RANK[worst.level] || 0)) worst = h; });
+      own = chain.length ? chain.map(esc).join(' → ') : 'Owner not known';
+      if ((c.verified_lists || []).length) own += ' <span class="stx-hit confirmed">Confirmed: ' + esc(c.verified_lists[0]) + '</span>';
+      else if (worst) own += ' ' + hitChip(worst);
+      else own += ' <span class="src">' + (SUP.listDate ? 'no restricted-list match' : 'not screened') + '</span>';
+    } else own = v.gfw && v.gfw.owner ? esc(v.gfw.owner) + ' <span class="src">registry owner</span>' : '<span class="src">Owner not known</span>';
+    out += '<div><span class="lab">Ownership</span>' + own + '</div>';
+    /* port calls by country */
+    var rows = shipPortRows(v), total = rows.reduce(function (s, g) { return s + g.calls; }, 0);
+    out += '<div data-calls="' + total + '"><span class="lab">Port calls · ' + total + '</span>' + (rows.length ? rows.map(function (g) {
+      var ree = g.ports.filter(function (q) { return q.ree; });
+      return '<div class="stx-ovrow"><b>' + esc(g.country) + '</b>' + (g.home ? ' <span class="stx-badge">home</span>' : '') + ' <span class="src">' + g.calls + ' call' + (g.calls > 1 ? 's' : '') +
+        (g.last !== null && g.last !== undefined ? ' · last ' + esc(A.fDs(E.T_START + g.last * E.H)) : '') + ' · ' + g.ports.slice(0, 3).map(function (q) { return esc(q.name); }).join(', ') + '</span>' +
+        (ree.length ? '<br><span class="stx-hit possible" title="' + esc(ree.map(function (q) { return q.name + ': ' + q.ree; }).join('; ')) + '">Rare-earth linked: ' + esc(ree.map(function (q) { return q.name; }).join(', ')) + '</span>' : '') + '</div>';
+    }).join('') : '<span class="src">No port calls in this window</span>') + '</div>';
+    /* areas worked */
+    var tiers = {}, mins = {};
+    v.events.forEach(function (e) {
+      tiers[e.tier] = (tiers[e.tier] || 0) + 1;
+      var a = SUP && SUP.areas ? SUP.areas[e.id] : null;
+      (a && a.minerals || []).forEach(function (m) { mins[m.name] = mins[m.name] || m.critical; });
+    });
+    var mlist = Object.keys(mins).sort(function (a, b) { return (mins[b] ? 1 : 0) - (mins[a] ? 1 : 0) || a.localeCompare(b); });
+    out += '<div><span class="lab">Areas worked</span>' + (v.events.length ? ['P1', 'P2', 'P3', 'P4'].filter(function (t) { return tiers[t]; }).map(function (t) { return '<span class="ptag ' + t + '">' + t + '</span> ' + tiers[t]; }).join(' · ') +
+      (mlist.length ? '<br><span class="src">Minerals: ' + mlist.map(function (m) { return esc(m) + (mins[m] ? ' (critical)' : ''); }).join(', ') + '</span>' : '') : '<span class="src">No detections</span>') + '</div>';
+    /* cable watch */
+    var aff = (X.cableAffinity || {})[v.id], eps = ((X.cableWatch || {})[v.id] || []).slice().sort(function (a, b) { return b.t0 - a.t0; });
+    if (aff || eps.length) {
+      var head = aff && aff.ratio !== null && aff.ratio !== undefined ? 'Stops on cables ' + aff.ratio + '× ' + (aff.ratio >= 1 ? 'more' : 'less') + ' than chance · ' + Math.round((aff.share_slow || 0) * 100) + '% of stopped time · ' + Math.round(aff.slow_on_h) + ' h' : 'Too little data to judge';
+      out += '<div><span class="lab">Cable watch</span>' + (aff && aff.flag ? '<span class="cbbadge">CABLE</span> ' : '') + (aff && aff.cableShip ? '<span class="src">Cable ship · likely maintenance</span> ' : '') + '<span class="src">' + esc(head) + '</span>' +
+        eps.slice(0, 6).map(function (ep) {
+          return '<div class="stx-ovrow">' + esc(A.fDs(E.T_START + ep.t0 * E.H)) + ' · ' + Math.round(ep.hours) + ' h ' + (ep.kind === 'dark' ? 'dark' : ep.kind) + ' on ' + esc((ep.cables[0] || {}).name || 'a cable') +
+            ' <button class="link" type="button" data-cwgo="' + ep.center[0] + ',' + ep.center[1] + '">Show</button></div>';
+        }).join('') + (eps.length > 6 ? '<span class="src">+ ' + (eps.length - 6) + ' more on the map (Layers ▸ Cable watch)</span>' : '') + '</div>';
+    }
+    return '<div class="sec stx-overview stx-chain"><h4>Ship overview · Survey Detector</h4>' + out + '</div>';
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target, g = t && t.getAttribute && t.getAttribute('data-cwgo');
+    if (g) { var p = g.split(','); S.layers.cablewatch = true; A.renderLayers(); applyLayers(); map.setView([+p[0], +p[1]], 8); }
+  });
+
   var busy = false;
   function decorateIntel() {
     if (busy) return; busy = true;
     var el = $('intel');
+    if (el && S.focus && !el.querySelector('.stx-overview')) {
+      var ov = overviewSection(), idh = el.querySelector('.idhead');
+      if (ov) {
+        var d0 = document.createElement('div'); d0.innerHTML = ov;
+        if (idh && idh.parentNode) idh.parentNode.insertBefore(d0.firstChild, idh.nextSibling);
+        else (el.querySelector('.scroll') || el).insertBefore(d0.firstChild, (el.querySelector('.scroll') || el).firstChild);
+      }
+    }
     if (el && !el.querySelector('.stx-x')) {
       var html = extraSection();
       if (html) {
@@ -238,10 +343,11 @@
         else (el.querySelector('.scroll') || el).appendChild(d2.firstChild);
       }
     }
-    drawRoutes(); writeHash();
+    drawRoutes(); drawCableWatch(); writeHash();
     busy = false;
   }
   new MutationObserver(function () { decorateIntel(); }).observe($('intel'), { childList: true });
+  window.ST_DECORATE = decorateIntel;
   document.addEventListener('click', function (e) {
     if (e.target && e.target.id === 'stx-copylink') { try { A.copy(window.top.location.href, 'Link'); } catch (err) { A.copy(location.href, 'Link'); } }
   });

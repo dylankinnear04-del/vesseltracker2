@@ -54,6 +54,33 @@ DRIVER = """<script>
       setTimeout(function(){ var on1=wms()===1, b2=document.querySelector('[data-layer="seafloor"]'); if(b2) b2.click();
         setTimeout(function(){ var off2=wms()===0; out.seafloorLayer=!!sfb&&off0&&on1&&off2;
           if(!out.seafloorLayer) window.__errors.push('seafloor layer: '+[!!sfb,off0,on1,off2].join(',')); },60); },60); }
+    /* Submarine cables layer: listed, off at start, toggles a group with hundreds of routes */
+    if(M){ var cbl=document.querySelector('[data-layer="cables"]'), nCab=function(){var n=0;M.eachLayer(function(l){if(l.options&&l.options.stxCable)n++;});return n;};
+      var c0=nCab()===0&&cbl&&!cbl.checked; if(cbl) cbl.click();
+      setTimeout(function(){ var c1=nCab(), raw0=JSON.parse(document.getElementById('seatrace-data').textContent), want=((raw0.extras||{}).cables||[]).length;
+        var b2=document.querySelector('[data-layer="cables"]'); if(b2) b2.click();
+        setTimeout(function(){ out.cableLayer=!!c0&&(want?c1>=300:c1===0)&&nCab()===0;
+          if(!out.cableLayer) window.__errors.push('cable layer: start '+c0+', on '+c1+' of '+want+', off '+nCab()); },60); },60); }
+    /* fleet: CABLE badge on exactly the flagged ships shown; the Cable watch filter keeps only them */
+    var AA=window.SEATRACE;
+    if(AA){ var flag=function(id){return !!(ENGINE.cableFlag&&ENGINE.cableFlag(AA.V[id]));};
+      var rows=[].slice.call(document.querySelectorAll('#fleet .vrow [data-focus]'));
+      out.cableBadgeOk=rows.every(function(b){var r=b.closest('.vrow');return !!r.querySelector('.cbbadge')===flag(b.getAttribute('data-focus'));});
+      var fb=document.querySelector('[data-f="cable"]'); out.cableFilterOk=!!fb;
+      if(fb){ fb.click(); for(var gi=0;gi<40;gi++){ var gh=document.querySelector('#fleet .grp-h[aria-expanded="false"]'); if(!gh) break; gh.click(); }
+        var shown=[].slice.call(document.querySelectorAll('#fleet .vrow [data-focus]')).map(function(b){return b.getAttribute('data-focus');});
+        var nflag=Object.keys(AA.V).filter(flag).length;
+        out.cableFilterOk=shown.length===nflag&&shown.every(flag); out.cableFlagged=nflag;
+        document.querySelector('[data-f="cable"]').click(); }
+      if(!out.cableBadgeOk) window.__errors.push('cable badges do not match the flag');
+      if(!out.cableFilterOk) window.__errors.push('cable filter: shows '+(shown||[]).length+', flagged '+out.cableFlagged); }
+    /* Ship overview: one card per selected ship; its port-call total matches the ship's calls */
+    if(AA){ var bad=[];
+      Object.keys(AA.V).forEach(function(id){ AA.focusVessel(id, null, false); if(window.ST_DECORATE) window.ST_DECORATE();
+        var cards=document.querySelectorAll('#intel .stx-overview'), pc=cards[0]&&cards[0].querySelector('[data-calls]');
+        var n=pc?+pc.getAttribute('data-calls'):-1;
+        if(cards.length!==1||n!==AA.V[id].calls.length) bad.push(id+':'+cards.length+'/'+n+'/'+AA.V[id].calls.length); });
+      out.overviewOk=bad.length===0; if(!out.overviewOk) window.__errors.push('ship overview: '+bad.slice(0,3).join(', ')); }
     click('btn-brief');
     for(var i=0;i<40;i++){ var b=$('brief'); if(!b||!b.innerHTML||!$('b-next')) break; out.steps++; click('b-next'); }
     ['vw-gallery','vw-timeline','vw-map','tab-alerts','tab-fleet'].forEach(click);
@@ -68,6 +95,9 @@ DRIVER = """<script>
       var want=listed.filter(function(id){var e=A.D.events.filter(function(x){return x.id===id;})[0];return e&&ENGINE.seafloorOn(e);});
       var got=document.querySelectorAll('.alert .sftag').length, sfe=want.length?A.D.events.filter(function(x){return x.id===want[0];})[0]:null, head=true;
       if(sfe){ A.focusEvent(sfe.id,false); var t=document.querySelector('.evhead .sftag'); head=!!t&&t.title===ENGINE.seafloorText(sfe.seafloor); }
+      var wantC=listed.filter(function(id){var e=A.D.events.filter(function(x){return x.id===id;})[0];return e&&e.cable;}).length;
+      out.cableTagOk=document.querySelectorAll('.alert .cbtag').length===wantC; out.cableTagged=wantC;
+      if(!out.cableTagOk) window.__errors.push('cable tags: '+document.querySelectorAll('.alert .cbtag').length+' of '+wantC);
       out.tagOk=got===want.length&&head; if(!out.tagOk) window.__errors.push('seafloor tags: '+got+' of '+want.length+', header '+head); click('tab-fleet'); }
     out.entities=document.querySelectorAll('.stx-ent').length;
   }catch(e){window.__errors.push('driver: '+e.message);}

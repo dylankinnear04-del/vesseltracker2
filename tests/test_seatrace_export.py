@@ -253,3 +253,62 @@ def test_supply_list_date_is_the_download_date(monkeypatch, tmp_path):
 def test_every_event_has_seafloor(blob):
     assert blob["events"] and all("seafloor" in e for e in blob["events"])
     json.loads(sx.to_json(blob))          # strict JSON (no NaN)
+
+
+def test_every_event_has_cable(blob):
+    assert all("cable" in e for e in blob["events"])
+    for e in blob["events"]:
+        if e["cable"]:
+            assert e["cable"]["km"] <= 5 and e["cable"]["name"]
+
+
+def test_cable_layer_size(blob):
+    cl = blob["extras"]["cables"]
+    assert len(cl) > 300 and len(json.dumps(cl)) <= 600_000
+    c = cl[0]
+    assert {"id", "name", "owners", "rfs", "planned", "landings", "c"} <= set(c)
+
+
+def test_cable_watch_per_vessel(blob):
+    cw = blob["extras"]["cableWatch"]
+    assert set(cw) == {v["id"] for v in blob["vessels"]}
+    for eps in cw.values():
+        for e in eps:
+            assert e["kind"] in {"slow", "stopped", "dark"} and e["cables"] and {"t0", "t1", "center", "cableShip"} <= set(e)
+            assert e["hours"] >= (6 if e["kind"] == "dark" else 2)
+    assert blob["extras"]["cableNorm"] > 0
+
+
+def test_ship_ports(blob):
+    sp = blob["extras"]["shipPorts"]
+    for v in blob["vessels"]:
+        assert sum(c["calls"] for c in sp.get(v["id"], [])) == len(v["calls"])
+        for c in sp.get(v["id"], []):
+            assert c["country"] is not None and isinstance(c["home"], bool) and c["ports"]
+
+
+def test_cable_affinity_per_vessel(blob):
+    ca = blob["extras"]["cableAffinity"]
+    assert set(ca) == {v["id"] for v in blob["vessels"]}
+    for a in ca.values():
+        assert {"ratio", "share_slow", "share_fast", "slow_on_h", "flag"} <= set(a)
+        if a["flag"]:
+            assert a["ratio"] >= 1.5 and a["slow_on_h"] >= 24
+    assert sum(a["flag"] for a in ca.values()) < len(ca) / 4          # a warning, not every ship
+
+
+def test_ship_ports_without_port_file(blob, monkeypatch):
+    import port_intel
+    monkeypatch.setattr(port_intel, "load_ports", lambda: pd.DataFrame())
+    sp = sx.ship_ports(blob)
+    assert set(sp) == {v["id"] for v in blob["vessels"]}
+    assert all(q["ree"] == "" for gs in sp.values() for g in gs for q in g["ports"])
+
+
+def test_event_cable_survey_line_across_the_antimeridian(monkeypatch):
+    seen = []
+    import cables
+    monkeypatch.setattr(cables, "_near_many", lambda lat, lon, km: seen.extend(lon) or [[] for _ in lat])
+    ev = {"center": [40.0, 179.9], "L": {"lines": [{"a": [40.0, 179.5], "b": [40.0, -179.5]}]}}
+    assert sx.event_cable(ev) is None
+    assert seen and all(abs(x) >= 179.4 for x in seen)        # sampled across ±180, not round the globe

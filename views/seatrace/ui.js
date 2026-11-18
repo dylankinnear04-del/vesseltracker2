@@ -33,7 +33,7 @@
   /* ---------- state ---------- */
   var top = D.events[0] || null;   /* Survey Detector: a season can have no detections */
   var S = {
-    tab: 'fleet', q: '', f: { flagged: false, watch: false, ret: false, active: false }, open: {}, sel: new Set(),
+    tab: 'fleet', q: '', f: { flagged: false, watch: false, ret: false, active: false, cable: false }, open: {}, sel: new Set(),
     focus: top ? top.vessel : (D.vessels[0] ? D.vessels[0].id : null), ev: top ? top.id : null, t: E.AS_OF, playing: false, timer: null,
     pri: { P1: true, P2: true, P3: true, P4: true }, model: 'ALL', brief: -1,
     layers: { zones: true, eez: true, ree: true, hot: true, grat: true, tracks: true, events: true, gaps: true, calls: true, known: false, coord: true, gfw: true },
@@ -54,7 +54,7 @@
   }
 
   /* ---------- fleet browser ---------- */
-  var FCH = [['flagged', 'Has detections'], ['ret', 'Same-port return'], ['watch', 'Mining watchlist']];
+  var FCH = [['flagged', 'Has detections'], ['ret', 'Same-port return'], ['watch', 'Mining watchlist'], ['cable', 'Cable watch']];
   function renderFChips() { $('fchips').innerHTML = FCH.map(function (c) { return '<button class="chip" type="button" data-f="' + c[0] + '" aria-pressed="' + S.f[c[0]] + '">' + c[1] + '</button>'; }).join(''); }
   function vMatch(v) {
     var q = S.q.trim().toLowerCase();
@@ -63,6 +63,7 @@
     if (S.f.active && !v.activeEv) return false;
     if (S.f.ret && !v.sameReturns) return false;
     if (S.f.watch && !isWatch(v)) return false;
+    if (S.f.cable && !(E.cableFlag && E.cableFlag(v))) return false;
     return true;
   }
   function stPill(v) {
@@ -82,7 +83,7 @@
       var rows = !open ? '' : '<div class="grp-sel"><button class="link" type="button" data-grpsel="' + k + '">' + (allSel ? 'Clear all from ' : 'Show all from ') + esc(E.COUNTRY[k]) + '</button></div>' + vs.map(function (v) {
         return '<div class="vrow' + (S.focus === v.id ? ' is-focus' : '') + '">' +
           '<input type="checkbox" id="cb-' + v.id + '" data-sel="' + v.id + '"' + (S.sel.has(v.id) ? ' checked' : '') + ' aria-label="Show ' + esc(v.name) + ' track on map">' +
-          '<button class="vbtn" type="button" data-focus="' + v.id + '"><span class="nm">' + (isWatch(v) ? '★ ' : '') + esc(v.name) + '</span><span class="sub">' + stPill(v) + ' ' + esc(E.CLASS[v.cls].label.replace(' vessel', '')) + '</span></button>' +
+          '<button class="vbtn" type="button" data-focus="' + v.id + '"><span class="nm">' + (isWatch(v) ? '★ ' : '') + esc(v.name) + cbBadge(v) + '</span><span class="sub">' + stPill(v) + ' ' + esc(E.CLASS[v.cls].label.replace(' vessel', '')) + '</span></button>' +
           (v.top ? '<span class="ptag ' + v.top.tier + '" title="Top priority">' + v.top.tier + '</span>' : '<span class="ptag none" title="No detections">–</span>') + '</div>';
       }).join('');
       return '<div class="grp"><button class="grp-h" type="button" data-grp="' + k + '" aria-expanded="' + open + '"><svg class="chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span class="flag">' + k + '</span><span class="nm">' + esc(E.COUNTRY[k]) + '</span><span class="evc">' + (nev ? nev + ' det' : '') + '</span><span class="cnt">' + vs.length + '</span></button>' + rows + '</div>';
@@ -99,6 +100,12 @@
   }
   /* Survey Detector: SEAMOUNT / RIDGE tag for a detection on one (engine.seafloorOn) */
   function sfTag(e) { var s = E.seafloorOn && E.seafloorOn(e); return s ? '<span class="sftag" title="' + esc(E.seafloorText(s)) + '">' + (s.kind === 'ridge' ? 'RIDGE' : 'SEAMOUNT') + '</span>' : ''; }
+  /* Survey Detector: CABLE tag (detection on a cable) and fleet badge (cable watch flag) */
+  function cbTag(e) { return e.cable ? '<span class="cbtag" title="' + esc('On the ' + e.cable.name + ' cable, ' + e.cable.km + ' km') + '">CABLE</span>' : ''; }
+  function cbBadge(v) {
+    var a = E.cableAffinity && E.cableAffinity(v);
+    return a && a.flag ? ' <span class="cbbadge" title="' + esc('Stops on cables ' + a.ratio + '× more than chance · ' + Math.round(a.share_slow * 100) + '% of stopped time · ' + Math.round(a.slow_on_h) + ' h') + '">CABLE</span>' : '';
+  }
   function alertList() { return D.events.filter(function (e) { return S.pri[e.tier] && (S.model === 'ALL' || e.model === S.model); }); }
   function renderAlerts() {
     var w = E.WATCH.filter(function (x) { return V[x.vessel]; }).map(function (x) { return '<button class="watchcard" type="button" data-watch="' + x.id + '"><span class="k">WATCH WINDOW · ' + esc(x.window) + '</span><b>' + esc(V[x.vessel].name) + ': ' + esc(x.title) + '</b><span class="muted" style="font-size:11.5px">' + esc(x.basis) + '</span></button>'; }).join('');
@@ -106,7 +113,7 @@
     var html = w + '<div class="secthead">Detections by priority · ' + list.length + '</div>' + list.map(function (e) {
       var v = V[e.vessel], c = caseOf(e.id);
       return '<button class="alert ' + e.tier + (S.ev === e.id ? ' is-focus' : '') + '" type="button" data-ev="' + e.id + '"><span class="bar"></span><span class="bd">' +
-        '<span class="r1"><span class="ptag ' + e.tier + '">' + e.tier + '</span><span class="nm">' + esc(v.name) + '</span><span class="flag">' + v.flag + '</span>' + sfTag(e) + '</span>' +
+        '<span class="r1"><span class="ptag ' + e.tier + '">' + e.tier + '</span><span class="nm">' + esc(v.name) + '</span><span class="flag">' + v.flag + '</span>' + sfTag(e) + cbTag(e) + '</span>' +
         '<span class="r2"><span class="model ' + e.model + '" style="line-height:16px;font-size:9.5px">' + E.MODEL[e.model].short + '</span><span class="num">' + fDs(e.t0) + ' → ' + (e.active ? 'now' : fDs(e.t1)) + '</span><span class="num">conf ' + e.confScore.toFixed(2) + '</span><span class="case ' + c.state + '">' + c.state + '</span></span>' +
         '<span class="why">' + esc(e.why.slice(0, 4).join(' · ')) + '</span></span></button>';
     }).join('');
@@ -396,7 +403,7 @@
     } else {
       if (v.events.length > 1) html += '<div class="evtabs" role="tablist">' + v.events.slice().sort(function (a, b) { return a.t0 - b.t0; }).map(function (x) { return '<button class="evtab" role="tab" type="button" data-ev="' + x.id + '" aria-selected="' + (x.id === e.id) + '"><span class="ptag ' + x.tier + '">' + x.tier + '</span>' + E.MODEL[x.model].short + ' · ' + fDs(x.t0) + '</button>'; }).join('') + '</div>';
       var c = caseOf(e.id);
-      html += '<div class="sec"><div class="evhead"><span class="model ' + e.model + '">' + E.MODEL[e.model].label.toUpperCase() + '</span><span class="st ' + (e.active ? 'act' : 'port') + '">' + e.status + '</span>' + sfTag(e) + '<span class="muted mono" style="font-size:11px;margin-left:auto">' + e.id + '</span></div>' +
+      html += '<div class="sec"><div class="evhead"><span class="model ' + e.model + '">' + E.MODEL[e.model].label.toUpperCase() + '</span><span class="st ' + (e.active ? 'act' : 'port') + '">' + e.status + '</span>' + sfTag(e) + cbTag(e) + '<span class="muted mono" style="font-size:11px;margin-left:auto">' + e.id + '</span></div>' +
         '<div class="evdates">' + fDT(e.t0) + ' → ' + (e.active ? 'ongoing' : fDT(e.t1)) + ' · ' + dur((e.t1 - e.t0) / H) + '</div>' +
         '<div class="scores"><div class="score"><span class="lab">Detection confidence</span><span class="big"><b>' + e.confScore.toFixed(2) + '</b><span>' + e.confLabel + '</span></span><span class="sub">' + esc(e.confSource) + '</span></div>' +
         '<div class="score pri ' + e.tier + '"><span class="lab">Analyst priority</span><span class="big"><b>' + e.tier + '</b><span>' + e.priScore.toFixed(2) + '</span></span><span class="sub">Resource context, vessel class, geography, history</span></div></div>' +
@@ -698,6 +705,7 @@
       '<tr><td><b>Interface</b></td><td>SeaTrace, a JMU capstone prototype, adapted to the Survey Detector pipeline</td><td>Layout, scoring engine, briefing and review workflow from SeaTrace; data, ports, routes, uploads and model comparison from the Survey Detector.</td></tr>' +
       '<tr><td><b>Mineral contract areas</b></td><td>International Seabed Authority public map service, read live (not stored), <a href="https://www.isa.org.jm/maps" target="_blank" rel="noopener">isa.org.jm/maps</a></td><td>' + st.zones + ' active contracts: nodules (PMN), polymetallic sulphides (PMS), cobalt-rich crusts (CFC).</td></tr>' +
       '<tr><td><b>EEZs</b></td><td>Marine Regions World EEZ v12 (VLIZ), <a href="https://www.marineregions.org/" target="_blank" rel="noopener">marineregions.org</a></td><td>Each detection centre looked up against the EEZ polygons; ' + D.eezLines.length.toLocaleString() + ' boundary lines (200 nm limits, median lines, treaties, unsettled and joint-regime lines) drawn on the map, simplified to about 2 km.</td></tr>' +
+      '<tr><td><b>Submarine cables</b></td><td>TeleGeography, <a href="https://www.submarinecablemap.com/" target="_blank" rel="noopener">Submarine Cable Map</a></td><td>Routes are schematic (a few km). Cable watch: a ship is flagged when the share of its stopped time (under 3 kn, more than 10 km from any port or cable landing) spent within 5 km of a cable is at least 1.5× the share of its underway time spent there, for 24 h or more; cable-laying and repair ships are labelled, not flagged. Only ships we follow are watched.</td></tr>' +
       '<tr><td><b>Seafloor shading</b></td><td>GEBCO Compilation Group, GEBCO Grid, via <a href="https://wms.gebco.net/" target="_blank" rel="noopener">GEBCO WMS</a></td><td>Map layer only (Layers ▸ Seafloor). Seamounts and ridges in the scoring come from the NOAA ETOPO 2022 grid.</td></tr>' +
       '<tr><td><b>Water depth</b></td><td>GEBCO 2020 grid via <a href="https://www.opentopodata.org/" target="_blank" rel="noopener">OpenTopoData</a></td><td>Depth sampled at each detection centre only (15 arc-second grid).</td></tr>' +
       '<tr><td><b>Ports</b></td><td>WPI-derived catalog (NGA Pub. 150) from the project folder</td><td>' + st.ports.toLocaleString() + ' ports. A port call is speed under 2 kn within 12 km of a port.</td></tr>' +

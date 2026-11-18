@@ -128,7 +128,7 @@ def test_missing_file(monkeypatch, tmp_path):
 
 **Interfaces:**
 - Consumes: blob fields from Task 3.
-- Produces: `E.cableFlag(v) -> boolean` (any non-cable-ship episode in `X.cableWatch[v.id]`) exported on ENGINE; layer keys `cables` (off) and `cablewatch` (on); CSS classes `.cbtag` (CABLE tag, same look as `.sftag` but cyan) and `.cbbadge` (fleet).
+- Produces: `E.cableFlag(v) -> boolean` (`X.cableAffinity[v.id].flag`, amended after the user chose "compare to chance") exported on ENGINE; watch markers drawn for flagged ships and the selected ship only; layer keys `cables` (off) and `cablewatch` (on); CSS classes `.cbtag` (CABLE tag, same look as `.sftag` but cyan) and `.cbbadge` (fleet).
 
 - [ ] **Step 1: Smoke checks** (pushed to `window.__errors` when false): `cableLayer` — `[data-layer="cables"]` exists, unchecked at start, toggling adds/removes a layer group with > 300 polylines (use the async 60 ms pattern of `seafloorLayer`); `cableTagOk` — `.alert .cbtag` count equals listed alerts with `e.cable`; `cableBadgeOk` — `.cbbadge` count in the fleet equals vessels with `E.cableFlag(v)`; `cableFilterOk` — clicking `[data-f="cable"]` leaves exactly those vessels listed, clicking again restores; `original_data.html` passes all with zero counts.
 - [ ] **Step 2: Rebuild smoke pages and confirm failures.**

@@ -298,6 +298,28 @@ deeper than 200 m. Such detections carry a SEAMOUNT or RIDGE tag and the
 numbers in their evidence. Layers ▸ **Seafloor (GEBCO)** shades the seafloor
 (off by default; GEBCO Compilation Group, GEBCO Grid).
 
+## Cable watch: ships over undersea cables
+
+To keep watch for attacks on undersea fibre-optic cables, Layers ▸ **Submarine
+cables** draws the routes from TeleGeography's public Submarine Cable Map
+(`scripts/fetch_cables.py` fetches them into `reference_data/`; routes are
+schematic, good to a few km; credit "TeleGeography, Submarine Cable Map").
+`cables.py` watches every followed ship's track for time **slow or stopped
+within 5 km of a cable** (2 h or more) or **dark over one** (an AIS gap of 6 h or
+more), more than 10 km from any port or cable landing. Research and survey ships
+stop for hours as routine and the seas they work are full of cables, so a ship
+is **flagged** only when it stops on cables more than chance: the share of its
+stopped time on a cable is at least 1.5x the share of its underway time there,
+for 24 h or more. Flagged ships get a CABLE badge and the **Cable watch** filter
+in the fleet list, and their stops show on the map. Survey and station
+detections on a cable carry a CABLE tag. Cable-laying and repair ships (CABLE in
+the name or type, or `cable_ship` in `reference_data/vessel_classes.csv`) are
+labelled, not flagged. Only ships we follow are watched.
+
+Each ship's panel opens with a **Ship overview**: owner chain and restricted-list
+result, port calls by country (home port and rare-earth-linked ports marked),
+areas worked and their minerals, and its cable watch.
+
 ## Your own copy on GitHub, and merging later
 
 A separate repository under your own account changes nothing in the team's:
