@@ -1,0 +1,7 @@
+{
+ "fetched": "2026-11-17",
+ "source": "https://www.submarinecablemap.com/api/v3/",
+ "license": "TeleGeography Submarine Cable Map; historically CC BY-NC-SA 3.0",
+ "cables": 714,
+ "landings": 1929
+}
