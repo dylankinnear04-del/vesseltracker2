@@ -731,7 +731,7 @@ def public_payload(group: str, window: str, settings: dict | None = None, statio
             pre = _prebuilt_payload(group, window, inputs_stamp(), isa_key, path.stat().st_mtime)
             if pre is not False:
                 return pre
-        return _payload(group, window, library_files(), isa_key)
+        return _payload(group, window, (library_files(), inputs_stamp()), isa_key)   # code changes rebuild it too
     key = ("payload", group, window, tuple(sorted((settings or {}).items())), tuple(sorted((station or {}).items())))
     if st.session_state.get("custom_payload_key") != key:      # one custom payload per visitor
         res = public_results(group, window, settings=settings, station=station)
