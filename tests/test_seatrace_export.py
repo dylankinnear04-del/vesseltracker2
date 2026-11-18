@@ -295,3 +295,20 @@ def test_cable_affinity_per_vessel(blob):
         if a["flag"]:
             assert a["ratio"] >= 1.5 and a["slow_on_h"] >= 24
     assert sum(a["flag"] for a in ca.values()) < len(ca) / 4          # a warning, not every ship
+
+
+def test_ship_ports_without_port_file(blob, monkeypatch):
+    import port_intel
+    monkeypatch.setattr(port_intel, "load_ports", lambda: pd.DataFrame())
+    sp = sx.ship_ports(blob)
+    assert set(sp) == {v["id"] for v in blob["vessels"]}
+    assert all(q["ree"] == "" for gs in sp.values() for g in gs for q in g["ports"])
+
+
+def test_event_cable_survey_line_across_the_antimeridian(monkeypatch):
+    seen = []
+    import cables
+    monkeypatch.setattr(cables, "_near_many", lambda lat, lon, km: seen.extend(lon) or [[] for _ in lat])
+    ev = {"center": [40.0, 179.9], "L": {"lines": [{"a": [40.0, 179.5], "b": [40.0, -179.5]}]}}
+    assert sx.event_cable(ev) is None
+    assert seen and all(abs(x) >= 179.4 for x in seen)        # sampled across ±180, not round the globe

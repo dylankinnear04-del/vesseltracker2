@@ -309,7 +309,7 @@
   }
   document.addEventListener('click', function (e) {
     var t = e.target, g = t && t.getAttribute && t.getAttribute('data-cwgo');
-    if (g) { var p = g.split(','); S.layers.cablewatch = true; applyLayers(); map.setView([+p[0], +p[1]], 8); }
+    if (g) { var p = g.split(','); S.layers.cablewatch = true; A.renderLayers(); applyLayers(); map.setView([+p[0], +p[1]], 8); }
   });
 
   var busy = false;

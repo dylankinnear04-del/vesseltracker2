@@ -163,8 +163,9 @@ def event_cable(ev: dict) -> dict | None:
     pts = [tuple(ev["center"])]
     for ln in (ev.get("L") or {}).get("lines", []):
         a, b = ln["a"], ln["b"]
+        dlon = (b[1] - a[1] + 180) % 360 - 180          # the short way, also across ±180
         n = max(1, int(cables._seg_km(a, b)))
-        pts += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n + 1)]
+        pts += [(a[0] + (b[0] - a[0]) * k / n, (a[1] + dlon * k / n + 180) % 360 - 180) for k in range(n + 1)]
     lat, lon = zip(*pts)
     hits = [h for near in cables._near_many(lat, lon, cables.CABLE_KM) for h in near]
     return min(hits, key=lambda h: h["km"]) if hits else None
@@ -200,10 +201,11 @@ def ship_ports(blob: dict) -> dict:
     """Port calls per vessel id, by country: [{country, calls, last, home, ports: [{name, calls, ree}]}]."""
     import port_intel
     from scipy.spatial import cKDTree
-    pi = port_intel.load_ports().dropna(subset=["lat", "lon"]).reset_index(drop=True)
-    tree = cKDTree(cables._xyz(pi["lat"], pi["lon"]))
+    pi = port_intel.load_ports()
+    pi = pi.dropna(subset=["lat", "lon"]).reset_index(drop=True) if {"lat", "lon", "ree_link"} <= set(pi.columns) else pd.DataFrame()
+    tree = cKDTree(cables._xyz(pi["lat"], pi["lon"])) if len(pi) else None
     ree = {}
-    for i, p in enumerate(blob["ports"]):
+    for i, p in enumerate(blob["ports"] if tree is not None else []):
         d, j = tree.query(cables._xyz([p["lat"]], [p["lon"]])[0])
         ree[i] = str(pi["ree_link"].iloc[j] or "") if 2 * cables.EARTH_KM * np.arcsin(min(1, d / 2)) <= 5 else ""
     out = {}
