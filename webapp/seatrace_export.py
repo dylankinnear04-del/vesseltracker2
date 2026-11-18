@@ -16,6 +16,7 @@ import re
 import numpy as np
 import pandas as pd
 
+import cables
 import geo_lookup
 import intel
 import track_events
@@ -131,6 +132,88 @@ def eez_lines() -> list:
         for line in ([g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]):
             out.append({"t": f["properties"]["type"], "n": f["properties"]["name"],
                         "c": [[round(lat, 3), round(lon, 3)] for lon, lat in line]})
+    return out
+
+
+CABLE_LAYER_MAX = 600_000      # bytes of JSON for the cable layer in each blob
+CABLE_STEP_KM = 2.0            # route points kept about this far apart on the map
+
+
+def _thin_line(line: list) -> list:
+    out = [line[0]]
+    for p in line[1:-1]:
+        if cables._seg_km(out[-1], p) >= CABLE_STEP_KM:
+            out.append(p)
+    out.append(line[-1])
+    return [[round(a, 2), round(b, 2)] for a, b in out]
+
+
+def cable_layer() -> list:
+    """Submarine cables for the map: [{id, name, owners, rfs, planned, landings, c: [[[lat, lon]...]...]}]."""
+    out = [{"id": c["id"], "name": c["name"], "owners": c["owners"], "rfs": c["rfs_year"], "planned": c["planned"],
+            "landings": "; ".join(", ".join(x for x in (l.get("name"), l.get("country")) if x) for l in c["landings"]),
+            "c": [_thin_line(l) for l in c["lines"]]} for c in cables.load_cables()]
+    if len(json.dumps(out, separators=(",", ":"))) > CABLE_LAYER_MAX:
+        out = [c for c in out if not c["planned"]]
+    return out
+
+
+def event_cable(ev: dict) -> dict | None:
+    """Nearest cable within cables.CABLE_KM of a detection: its centre, or any survey line sampled every ~1 km."""
+    pts = [tuple(ev["center"])]
+    for ln in (ev.get("L") or {}).get("lines", []):
+        a, b = ln["a"], ln["b"]
+        n = max(1, int(cables._seg_km(a, b)))
+        pts += [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in range(n + 1)]
+    lat, lon = zip(*pts)
+    hits = [h for near in cables._near_many(lat, lon, cables.CABLE_KM) for h in near]
+    return min(hits, key=lambda h: h["km"]) if hits else None
+
+
+def cable_extras(blob: dict, res: dict, lib: pd.DataFrame, vid: dict) -> dict:
+    """Cable watch per vessel id, and the usual hours of a cable crossing over every ship in this file."""
+    t0 = pd.Timestamp(blob["T0"])
+    avoid = np.vstack([np.array([[p["lat"], p["lon"]] for p in blob["ports"]], float).reshape(-1, 2),
+                       cables.landing_points()])
+    lib_of = _lib_rows(res, lib)
+    watch, crossings = {v["id"]: [] for v in blob["vessels"]}, []
+    for key, tr in res.get("tracks", {}).items():
+        if key not in vid or not len(tr):
+            continue
+        row = lib_of.get(key)
+        cs = cables.is_cable_ship(row.get("name", "") if row is not None else "",
+                                  row.get("ship_type", "") if row is not None else "",
+                                  str(row.get("mmsi", "")) if row is not None else "")
+        watch[vid[key]] = [{"t0": hours(e["t0"], t0), "t1": hours(e["t1"], t0), "hours": e["hours"], "kind": e["kind"],
+                            "cables": e["cables"], "center": e["center"], "cableShip": e["cable_ship"]}
+                           for e in cables.watch(tr, avoid, cable_ship=cs)]
+        crossings += cables.crossing_hours(tr, avoid)
+    return {"cableWatch": watch, "cableNorm": float(np.median(crossings)) if crossings else 1.0}
+
+
+def ship_ports(blob: dict) -> dict:
+    """Port calls per vessel id, by country: [{country, calls, last, home, ports: [{name, calls, ree}]}]."""
+    import port_intel
+    from scipy.spatial import cKDTree
+    pi = port_intel.load_ports().dropna(subset=["lat", "lon"]).reset_index(drop=True)
+    tree = cKDTree(cables._xyz(pi["lat"], pi["lon"]))
+    ree = {}
+    for i, p in enumerate(blob["ports"]):
+        d, j = tree.query(cables._xyz([p["lat"]], [p["lon"]])[0])
+        ree[i] = str(pi["ree_link"].iloc[j] or "") if 2 * cables.EARTH_KM * np.arcsin(min(1, d / 2)) <= 5 else ""
+    out = {}
+    for v in blob["vessels"]:
+        by = {}
+        for c in v["calls"]:
+            p = blob["ports"][c["port"]]
+            g = by.setdefault(p["cc"], {"country": p["cc"], "calls": 0, "last": None, "home": p["cc"] == v["country"],
+                                       "ports": {}})
+            g["calls"] += 1
+            g["last"] = c["t0"] if g["last"] is None or (c["t0"] or 0) > g["last"] else g["last"]
+            q = g["ports"].setdefault(p["name"], {"name": p["name"], "calls": 0, "ree": ree.get(c["port"], "")})
+            q["calls"] += 1
+        out[v["id"]] = sorted(({**g, "ports": sorted(g["ports"].values(), key=lambda q: -q["calls"])} for g in by.values()),
+                              key=lambda g: -g["calls"])
     return out
 
 
@@ -337,7 +420,9 @@ def build_blob(res: dict, lib: pd.DataFrame, isa_features: list | None, station:
     blob = {"eezLines": eez_lines(), "T0": t0.isoformat(), "AS_OF": round((newest - t0) / H, 1), "vessels": vessels,
             "events": events, "screened": screened, "ports": ports, "zones": zones_list(isa_features), "ree": ree_list(),
             "hotspots": hotspots, "meta": {"positions_raw": positions_raw, "positions_embedded": positions_kept},
-            "gfwVal": gfw_validation(intel_r, gev, events, t0, newest), "extras": {}}
+            "gfwVal": gfw_validation(intel_r, gev, events, t0, newest), "extras": {"cables": cable_layer()}}
+    for ev in events:
+        ev["cable"] = event_cable(ev)
     return add_extras(blob, res, lib, station, vid, view)
 
 
@@ -630,4 +715,6 @@ def add_extras(blob: dict, res: dict, lib: pd.DataFrame, station: dict | None = 
     if vid is not None:
         blob["extras"].update(survey_detector_extras(blob, res, lib, vid, view))
         blob["extras"]["supply"] = supply_extras(blob, lib)
+        blob["extras"].update(cable_extras(blob, res, lib, vid))
+        blob["extras"]["shipPorts"] = ship_ports(blob)
     return blob

@@ -253,3 +253,35 @@ def test_supply_list_date_is_the_download_date(monkeypatch, tmp_path):
 def test_every_event_has_seafloor(blob):
     assert blob["events"] and all("seafloor" in e for e in blob["events"])
     json.loads(sx.to_json(blob))          # strict JSON (no NaN)
+
+
+def test_every_event_has_cable(blob):
+    assert all("cable" in e for e in blob["events"])
+    for e in blob["events"]:
+        if e["cable"]:
+            assert e["cable"]["km"] <= 5 and e["cable"]["name"]
+
+
+def test_cable_layer_size(blob):
+    cl = blob["extras"]["cables"]
+    assert len(cl) > 300 and len(json.dumps(cl)) <= 600_000
+    c = cl[0]
+    assert {"id", "name", "owners", "rfs", "planned", "landings", "c"} <= set(c)
+
+
+def test_cable_watch_per_vessel(blob):
+    cw = blob["extras"]["cableWatch"]
+    assert set(cw) == {v["id"] for v in blob["vessels"]}
+    for eps in cw.values():
+        for e in eps:
+            assert e["kind"] in {"slow", "stopped", "dark"} and e["cables"] and {"t0", "t1", "center", "cableShip"} <= set(e)
+            assert e["hours"] >= (6 if e["kind"] == "dark" else 2)
+    assert blob["extras"]["cableNorm"] > 0
+
+
+def test_ship_ports(blob):
+    sp = blob["extras"]["shipPorts"]
+    for v in blob["vessels"]:
+        assert sum(c["calls"] for c in sp.get(v["id"], [])) == len(v["calls"])
+        for c in sp.get(v["id"], []):
+            assert c["country"] is not None and isinstance(c["home"], bool) and c["ports"]
