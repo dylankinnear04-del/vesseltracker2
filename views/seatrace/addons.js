@@ -40,6 +40,8 @@
     '.stx-ent .nm{color:var(--ink);font-weight:600;font-size:12.5px}.stx-ent .sub{color:var(--ink-3);font-size:11px;display:block;margin-top:2px}' +
     '.stx-ent .ships{display:none;margin-top:6px;gap:3px}.stx-ent.open .ships{display:grid}.stx-ent .ships button{all:unset;cursor:pointer;color:var(--accent);font-size:12px}' +
     '.stx-ent .nums{font-family:var(--f-mono);font-size:11px;color:var(--ink-2)}' +
+    '.cbtag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help;margin-left:4px}' +
+    '.cbbadge{display:inline-block;padding:0 4px;border-radius:2px;background:#2ec4d633;color:#8fe6f0;font:600 9px/14px var(--f-mono);letter-spacing:.05em;vertical-align:1px;cursor:help}' +
     '.sftag{display:inline-grid;place-items:center;height:16px;padding:0 5px;border-radius:2px;background:#8d6e6333;color:#d7b9a8;font:600 9.5px var(--f-mono);letter-spacing:.05em;cursor:help}';
   document.head.appendChild(css);
 
@@ -103,11 +105,41 @@
   var gSeafloor = L.tileLayer.wms('https://wms.gebco.net/mapserv', { layers: 'GEBCO_LATEST', format: 'image/png', pane: 'seafloor', opacity: 0.85, attribution: 'GEBCO Compilation Group, GEBCO Grid' });
   var EXTRA_LAYERS = [['routes', 'Port routes (selected survey)', 'dash:#5cc8ff'], ['pred', 'Predicted next lines', 'dash:#ff7ec3'],
                       ['regions', 'Seabed resource regions', 'linear-gradient(90deg,#1e88e5,#d81b60)'],
-                      ['seafloor', 'Seafloor (GEBCO)', 'linear-gradient(90deg,#0b2a4a,#3a7bb8,#a8d1e8)']];
+                      ['seafloor', 'Seafloor (GEBCO)', 'linear-gradient(90deg,#0b2a4a,#3a7bb8,#a8d1e8)'],
+                      ['cables', 'Submarine cables', 'line:#2ec4d6'], ['cablewatch', 'Cable watch (flagged ships)', 'dot:#ff5d5d']];
+  /* Submarine cables (TeleGeography; schematic routes) and cable-watch episodes */
+  var gCables = L.layerGroup(), gCableWatch = L.layerGroup();
+  (X.cables || []).forEach(function (c) {
+    var tip = '<b>' + esc(c.name) + '</b>' + (c.planned ? ' · planned' : '') + (c.rfs ? ' · in service ' + esc(c.rfs) : '') +
+      (c.owners ? '<br><span style="color:#a1b5c3">Owners: ' + esc(c.owners) + '</span>' : '') + (c.landings ? '<br><span style="color:#a1b5c3">Lands at: ' + esc(c.landings) + '</span>' : '');
+    OFFS.forEach(function (o) {
+      gCables.addLayer(L.polyline(c.c.map(function (l) { return l.map(function (q) { return [q[0], q[1] + o]; }); }),
+        { color: '#2ec4d6', weight: 1.2, opacity: c.planned ? 0.45 : 0.75, dashArray: c.planned ? '4 4' : null, stxCable: true }).bindTooltip(tip, { sticky: true }));
+    });
+  });
+  var CW_COL = { stopped: '#ff5d5d', slow: '#ffb347', dark: '#b48cff' };
+  function drawCableWatch() {
+    gCableWatch.clearLayers();
+    var cw = X.cableWatch || {}, norm = X.cableNorm || 1;
+    Object.keys(cw).forEach(function (vid) {
+      var v = V[vid], aff = (X.cableAffinity || {})[vid] || {};
+      if (!v || !(aff.flag || S.focus === vid)) return;
+      cw[vid].forEach(function (ep) {
+        var col = ep.cableShip ? '#9fb3c1' : CW_COL[ep.kind] || '#ffb347', c = ep.cables[0] || {};
+        var tip = '<b>' + esc(v.name) + '</b> · ' + Math.round(ep.hours) + ' h ' + (ep.kind === 'dark' ? 'dark (no AIS)' : ep.kind) + ' on ' + esc(c.name || 'a cable') +
+          '<br>' + A.fDs(E.T_START + ep.t0 * E.H) + ' → ' + A.fDs(E.T_START + ep.t1 * E.H) + ' · usual crossing ' + (Math.round(norm * 10) / 10) + ' h' +
+          (aff.ratio ? '<br>Stops on cables ' + aff.ratio + '× more than chance' : '') + (ep.cableShip ? '<br>Cable ship · likely maintenance' : '');
+        OFFS.forEach(function (o) {
+          gCableWatch.addLayer(L.circleMarker([ep.center[0], ep.center[1] + o], { radius: 5, color: col, weight: 1.5, fillColor: col, fillOpacity: 0.45 })
+            .bindTooltip(tip).on('click', function () { A.focusVessel(vid); }));
+        });
+      });
+    });
+  }
   (function layers() {
     var at = A.LAYERS.findIndex(function (l) { return l[0] === 'grat'; });
     A.LAYERS.splice.apply(A.LAYERS, [at < 0 ? A.LAYERS.length : at, 0].concat(EXTRA_LAYERS));
-    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false; S.layers.seafloor = false;
+    S.layers.routes = true; S.layers.pred = true; S.layers.regions = false; S.layers.seafloor = false; S.layers.cables = false; S.layers.cablewatch = true; drawCableWatch();
     A.renderLayers();
     (X.pred || []).forEach(function (p) {
       OFFS.forEach(function (o) {
@@ -136,14 +168,14 @@
     });
   }
   function applyLayers() {
-    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions'], [gSeafloor, 'seafloor']].forEach(function (x) {
+    [[gRoutes, 'routes'], [gPred, 'pred'], [gRegions, 'regions'], [gSeafloor, 'seafloor'], [gCables, 'cables'], [gCableWatch, 'cablewatch']].forEach(function (x) {
       if (S.layers[x[1]]) { if (!map.hasLayer(x[0])) x[0].addTo(map); } else map.removeLayer(x[0]);
     });
   }
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.getAttribute) return;
     var k = t.getAttribute('data-layer');
-    if (k === 'routes' || k === 'pred' || k === 'regions' || k === 'seafloor') setTimeout(applyLayers, 0);
+    if (k === 'routes' || k === 'pred' || k === 'regions' || k === 'seafloor' || k === 'cables' || k === 'cablewatch') setTimeout(applyLayers, 0);
   });
 
   /* ---------- assessment pane: likely target, ports, copy link ---------- */
@@ -238,7 +270,7 @@
         else (el.querySelector('.scroll') || el).appendChild(d2.firstChild);
       }
     }
-    drawRoutes(); writeHash();
+    drawRoutes(); drawCableWatch(); writeHash();
     busy = false;
   }
   new MutationObserver(function () { decorateIntel(); }).observe($('intel'), { childList: true });

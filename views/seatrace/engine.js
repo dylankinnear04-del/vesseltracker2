@@ -17,6 +17,9 @@ var ENGINE = (function () {
     return s.kind === 'ridge' ? 'On a mid-ocean ridge: rises ' + mM(s.rise_m) + ' above the surrounding floor'
       : 'On a seamount: summit ' + mM(s.summit_m) + ', rises ' + mM(s.rise_m) + ' above the surrounding floor' + (s.crust_depth ? ' · cobalt-crust depth' : '');
   }
+  /* Survey Detector: cable watch flag (cables.flagged: stops on cables clearly more than chance) */
+  function cableAff(v) { return v ? ((X.cableAffinity || {})[v.id] || null) : null; }
+  function cableFlag(v) { var a = cableAff(v); return !!(a && a.flag); }
   function f1(x) { return (Math.round(x * 10) / 10).toFixed(1); }
 
   var T_START = Date.parse(RAW.T0), AS_OF = T_START + RAW.AS_OF * H;
@@ -130,7 +133,7 @@ var ENGINE = (function () {
     var events = [];
     RAW.events.forEach(function (r) {
       var v = byId[r.vessel]; if (!v) return;
-      var e = { rid: r.id, vessel: v.id, model: r.model, t0: tm(r.t0), t1: tm(r.t1), center: r.center, eez: r.eez, depth: r.depth, seafloor: r.seafloor || null, boundary: r.boundary, zone: (r.zone && ZONE[r.zone]) || null, nearZone: (r.nearZone && ZONE[r.nearZone]) || null, nearZoneKm: r.nearZoneKm, foreign: r.foreign, nearestPort: r.nearestPort, mntKm: r.mntKm };
+      var e = { rid: r.id, vessel: v.id, model: r.model, t0: tm(r.t0), t1: tm(r.t1), center: r.center, eez: r.eez, depth: r.depth, seafloor: r.seafloor || null, cable: r.cable || null, boundary: r.boundary, zone: (r.zone && ZONE[r.zone]) || null, nearZone: (r.nearZone && ZONE[r.nearZone]) || null, nearZoneKm: r.nearZoneKm, foreign: r.foreign, nearestPort: r.nearestPort, mntKm: r.mntKm };
       e.active = e.t1 >= AS_OF - 12 * H;
       if (r.L) {
         var L = r.L; L.lines.forEach(function (l) { l.t0 = tm(l.t0); l.t1 = tm(l.t1); }); e.L = L;
@@ -249,6 +252,7 @@ var ENGINE = (function () {
     if (e.S && e.gfw) parts.push('confirmed by a GFW loitering event (' + fmtDur(e.gfw.hours) + ')');
     if (e.zone) parts.push('inside ISA ' + ZONE_TYPES[e.zone.type].short + ' contract area of ' + e.zone.contractor);
     else if (e.mntKm < 300) parts.push(Math.round(e.mntKm) + ' km from Minamitorishima (rare-earth mud)');
+    if (e.cable) parts.push('on the ' + e.cable.name + ' cable (' + f1(e.cable.km) + ' km)');
     var sfE = sfOn(e);
     if (sfE) parts.push(sfE.kind === 'ridge' ? 'on a mid-ocean ridge' : 'on a seamount (summit ' + mM(sfE.summit_m) + ', rises ' + mM(sfE.rise_m) + ')');
     if (e.eez && e.eez.sov.indexOf(v.country) < 0) parts.push('inside ' + e.eez.name);
@@ -264,5 +268,5 @@ var ENGINE = (function () {
     if (e.voyage && e.voyage.same) parts.push('returned to ' + PORT[e.voyage.from].name);
     return parts;
   }
-  return { EXTRAS: X, STATION_RULE: STATION_RULE, build: build, PORTS: PORTS, PORT: PORT, ZONES: ZONES, ZONE_TYPES: ZONE_TYPES, COUNTRY: ISO2NAME, CLASS: CLASS, MODEL: MODEL, REFERENCE: REFERENCE, WATCH: WATCH, REGRESSION: REGRESSION, AS_OF: AS_OF, T_START: T_START, H: H, DAY: DAY, hav: hav, seafloorText: seafloorText, seafloorOn: sfOn, offset: offset, fmtDur: fmtDur, compass: compass };
+  return { EXTRAS: X, STATION_RULE: STATION_RULE, build: build, PORTS: PORTS, PORT: PORT, ZONES: ZONES, ZONE_TYPES: ZONE_TYPES, COUNTRY: ISO2NAME, CLASS: CLASS, MODEL: MODEL, REFERENCE: REFERENCE, WATCH: WATCH, REGRESSION: REGRESSION, AS_OF: AS_OF, T_START: T_START, H: H, DAY: DAY, hav: hav, seafloorText: seafloorText, seafloorOn: sfOn, cableFlag: cableFlag, cableAffinity: cableAff, offset: offset, fmtDur: fmtDur, compass: compass };
 })();
