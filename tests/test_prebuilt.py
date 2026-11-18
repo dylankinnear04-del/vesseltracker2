@@ -90,3 +90,15 @@ def test_console_page_opens_from_prebuilt_file(prebuilt, monkeypatch):
 def test_stamp_includes_supply_chain_inputs():
     names = {p.name for p in data.stamp_inputs()}
     assert {"supply_chain.py", "screening_list.csv.gz", "entity_links.csv", "mineral_import_reliance.csv"} <= names
+
+
+def test_live_build_cache_follows_code_changes(prebuilt, monkeypatch):
+    """Without a prebuilt file the site builds live and caches it; a code release must not keep serving the old build."""
+    calls = []
+    monkeypatch.setattr(data, "_console_blob", lambda g, w: calls.append(1) or fake_blob(g, w))
+    monkeypatch.setattr(data, "inputs_stamp", lambda: "code-v1")
+    data.public_payload("mining", "6m")
+    data.public_payload("mining", "6m")
+    monkeypatch.setattr(data, "inputs_stamp", lambda: "code-v2")
+    data.public_payload("mining", "6m")
+    assert calls == [1, 1]
