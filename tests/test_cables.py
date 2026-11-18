@@ -173,3 +173,36 @@ def test_cable_ship_marked(P):
 def test_missing_speed_is_derived(P):
     tr = track(transit(P), [np.nan] * 11)
     assert cables.watch(tr, NO_PORTS) == []                  # 18 km an hour: not slow
+
+
+# ---------- cable affinity: does the ship stop on cables more than chance? ----------------------------------------
+
+def _mixed(P, slow_on, fast_on, n=20):
+    """n slow fixes and n underway fixes; *_on says whether each group sits on the cable at P or 300 km north."""
+    off = (P[0] + 2.7, P[1])
+    pts = [(P if slow_on else off)] * n + [(P if fast_on else off)] * n
+    return track(pts, [0.5] * n + [8.0] * n)
+
+
+def test_affinity_high_when_stopping_on_cables(P):
+    tr = _mixed(P, slow_on=True, fast_on=False)
+    a = cables.affinity(tr, NO_PORTS)
+    assert a["ratio"] >= 1.5 and a["share_slow"] == 1.0 and a["slow_on_h"] == 20
+
+
+def test_affinity_low_when_only_crossing(P):
+    a = cables.affinity(_mixed(P, slow_on=False, fast_on=True), NO_PORTS)
+    assert a["ratio"] < 1
+
+
+def test_affinity_needs_enough_fixes(P):
+    a = cables.affinity(_mixed(P, True, False, n=5), NO_PORTS)
+    assert a["ratio"] is None
+
+
+def test_flagged_rule():
+    assert cables.flagged({"ratio": 1.7, "slow_on_h": 30}, cable_ship=False)
+    assert not cables.flagged({"ratio": 1.7, "slow_on_h": 10}, cable_ship=False)
+    assert not cables.flagged({"ratio": 1.2, "slow_on_h": 300}, cable_ship=False)
+    assert not cables.flagged({"ratio": 3.0, "slow_on_h": 300}, cable_ship=True)
+    assert not cables.flagged({"ratio": None, "slow_on_h": 0}, cable_ship=False)

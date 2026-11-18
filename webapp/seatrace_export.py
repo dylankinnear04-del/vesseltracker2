@@ -171,12 +171,15 @@ def event_cable(ev: dict) -> dict | None:
 
 
 def cable_extras(blob: dict, res: dict, lib: pd.DataFrame, vid: dict) -> dict:
-    """Cable watch per vessel id, and the usual hours of a cable crossing over every ship in this file."""
+    """Cable watch per vessel id: episodes, cable affinity and its flag (cables.flagged), and the usual hours
+    of a cable crossing over every ship in this file."""
     t0 = pd.Timestamp(blob["T0"])
     avoid = np.vstack([np.array([[p["lat"], p["lon"]] for p in blob["ports"]], float).reshape(-1, 2),
                        cables.landing_points()])
     lib_of = _lib_rows(res, lib)
     watch, crossings = {v["id"]: [] for v in blob["vessels"]}, []
+    aff = {v["id"]: {"ratio": None, "share_slow": None, "share_fast": None, "slow_on_h": 0.0, "slow_h": 0.0,
+                     "cableShip": False, "flag": False} for v in blob["vessels"]}
     for key, tr in res.get("tracks", {}).items():
         if key not in vid or not len(tr):
             continue
@@ -188,7 +191,9 @@ def cable_extras(blob: dict, res: dict, lib: pd.DataFrame, vid: dict) -> dict:
                             "cables": e["cables"], "center": e["center"], "cableShip": e["cable_ship"]}
                            for e in cables.watch(tr, avoid, cable_ship=cs)]
         crossings += cables.crossing_hours(tr, avoid)
-    return {"cableWatch": watch, "cableNorm": float(np.median(crossings)) if crossings else 1.0}
+        a = cables.affinity(tr, avoid)
+        aff[vid[key]] = {**a, "cableShip": cs, "flag": cables.flagged(a, cs)}
+    return {"cableWatch": watch, "cableAffinity": aff, "cableNorm": float(np.median(crossings)) if crossings else 1.0}
 
 
 def ship_ports(blob: dict) -> dict:

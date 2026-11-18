@@ -85,6 +85,18 @@ KD-tree over route points densified to ≤ 1 km spacing (so distance to the line
 - episodes are computed per prebuilt file from that window's tracks (the console only shows that window);
   a ship in several groups gets the same episodes for the same window, since the rule is per ship.
 
+**What counts as unusual (changed 2026-11-17, after testing on real data).** The episode rule above, run on
+all followed ships over 6 months, flagged 72 of 86 ships (1,350 episodes): research and survey ships stop for
+hours as routine, and the seas they work are dense with cables. So a ship is **flagged** only when it stops
+on cables more than chance: **cable affinity** = share of its slow time (under 3 kn, away from ports) that is
+on a cable ÷ share of its underway time (5 kn or more, away from ports) that is on a cable, each plus 0.01.
+Flag when affinity ≥ **1.5** and on-cable slow time ≥ **24 h**, with at least 10 slow and 10 underway fixes,
+and not a cable ship. Measured: median 0.55; top Kilo Moana 2.3, Sagar Nidhi 2.0, Côtes de la Manche 2.0,
+China Coast Guard 3101 (72 % of its slow time on cables) 1.7. Episodes are still computed and listed for
+every ship in the Ship overview; the CABLE badge, the Cable watch filter and the map markers use the flag
+(markers also show for the selected ship). The console states the affinity, e.g. "stops on cables 1.7× more
+than chance · 72 % of stopped time".
+
 **Detections on a cable.** Each survey/station event gets `cable: {id, name, km}` when its centre (station)
 or any survey line comes within 5 km of a cable, else null.
 

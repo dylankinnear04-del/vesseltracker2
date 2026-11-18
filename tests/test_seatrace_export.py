@@ -285,3 +285,13 @@ def test_ship_ports(blob):
         assert sum(c["calls"] for c in sp.get(v["id"], [])) == len(v["calls"])
         for c in sp.get(v["id"], []):
             assert c["country"] is not None and isinstance(c["home"], bool) and c["ports"]
+
+
+def test_cable_affinity_per_vessel(blob):
+    ca = blob["extras"]["cableAffinity"]
+    assert set(ca) == {v["id"] for v in blob["vessels"]}
+    for a in ca.values():
+        assert {"ratio", "share_slow", "share_fast", "slow_on_h", "flag"} <= set(a)
+        if a["flag"]:
+            assert a["ratio"] >= 1.5 and a["slow_on_h"] >= 24
+    assert sum(a["flag"] for a in ca.values()) < len(ca) / 4          # a warning, not every ship

@@ -228,3 +228,37 @@ def is_cable_ship(name: str, ship_type: str, mmsi: str) -> bool:
     """Cable layer / repair ship: CABLE in the name or ship type, or listed in vessel_classes.csv."""
     text = f"{name or ''} {ship_type or ''}".upper().replace(" ", "")
     return "CABLE" in text or str(mmsi or "").strip() in _cable_mmsis()
+
+
+# ---------- cable affinity: does a ship stop on cables more than chance would give? -------------------------------
+
+AFFINITY_MIN = 1.5      # flag when its slow time is on cables 1.5x as often as its underway time is
+AFFINITY_HOURS = 24.0   # ...and it spent at least this long slow on cables
+UNDERWAY_KN = 5.0       # underway fixes: this fast or faster
+MIN_FIXES = 10          # need this many slow and underway fixes (away from ports) to judge
+
+
+def affinity(track: pd.DataFrame, avoid: np.ndarray) -> dict:
+    """{ratio, share_slow, share_fast, slow_on_h, slow_h}: share of slow time on a cable over the share of
+    underway time on a cable (each + 0.01), away from ports and landings. ratio None with too few fixes."""
+    tr, lat, lon, t, sog, near, on = _prepare(track, avoid)
+    away = np.ones(len(tr), bool)
+    avoid = np.asarray(avoid, float).reshape(-1, 2)
+    if len(avoid) and len(tr):
+        d, _ = cKDTree(_xyz(avoid[:, 0], avoid[:, 1])).query(_xyz(lat, lon))
+        away = 2 * EARTH_KM * np.arcsin(np.clip(d / 2, 0, 1)) > PORT_KM
+    slow, fast = away & (sog < SLOW_KN), away & (sog >= UNDERWAY_KN)
+    dt = np.diff(t, append=t[-1] + 1 if len(t) else 1)
+    dt = np.clip(dt, 0, 1.0)  # each fix stands for at most an hour (gaps are not time on a cable)
+    out = {"ratio": None, "share_slow": None, "share_fast": None,
+           "slow_on_h": round(float(dt[slow & on].sum()), 1), "slow_h": round(float(dt[slow].sum()), 1)}
+    if slow.sum() >= MIN_FIXES and fast.sum() >= MIN_FIXES:
+        ps, pf = float(on[slow].mean()), float(on[fast].mean())
+        out.update(ratio=round((ps + 0.01) / (pf + 0.01), 2), share_slow=round(ps, 3), share_fast=round(pf, 3))
+    return out
+
+
+def flagged(a: dict, cable_ship: bool) -> bool:
+    """Cable watch flag: stops on cables clearly more than chance, for long enough, and not a cable ship."""
+    return (not cable_ship and a.get("ratio") is not None and a["ratio"] >= AFFINITY_MIN
+            and (a.get("slow_on_h") or 0) >= AFFINITY_HOURS)
