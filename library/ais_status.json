@@ -3,5 +3,8 @@
  "error": null,
  "last_attempt": "2026-11-19",
  "last_positions": 12,
- "last_ships": 5
+ "last_ships": 5,
+ "last_merge": "2026-11-19",
+ "merged_positions": 4,
+ "merged_ships": 4
 }
