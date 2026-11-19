@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main              # the newest main, not the pushed commit: a data commit may have landed while queued
 
       - uses: actions/setup-python@v5
         with:

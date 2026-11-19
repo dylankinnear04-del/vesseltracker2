@@ -37,6 +37,8 @@ MAX_SHIPS = 200                     # aisstream's limit per subscription
 POSITION_TYPES = ["PositionReport", "StandardClassBPositionReport", "ExtendedClassBPositionReport",
                   "LongRangeAisBroadcastMessage"]
 BUFFER_COLUMNS = ["mmsi", "time", "lat", "lon", "speed", "course", "name"]
+QUICK_CLOSE_S = 5.0                 # a connection closed this soon with no data at all...
+QUICK_CLOSES = 3                    # ...this many times in a row: the server is refusing us (e.g. a bad key)
 
 
 def subscription(key: str, mmsis: list) -> dict:
@@ -93,18 +95,22 @@ def hourly(rows: list) -> pd.DataFrame:
     return out[BUFFER_COLUMNS].sort_values(["mmsi", "time"]).reset_index(drop=True)
 
 
-async def record(key: str, mmsis: list, seconds: float, connect=None) -> list:
-    """Listen for `seconds`, reconnecting with backoff; positions of the given ships."""
+async def record(key: str, mmsis: list, seconds: float, connect=None, rows: list | None = None) -> list:
+    """Listen for `seconds`, reconnecting with backoff; positions of the given ships, appended to `rows` (so
+    the caller keeps what arrived even if this raises). Raises RuntimeError when aisstream reports an error or
+    closes every connection at once with no data."""
     if connect is None:
         import websockets
         connect = lambda url: websockets.connect(url, compression="deflate", max_size=2 ** 22)  # noqa: E731
-    wanted, rows = {str(m) for m in mmsis}, []
-    deadline, wait = time.monotonic() + seconds, 1.0
+    wanted, rows = {str(m) for m in mmsis}, (rows if rows is not None else [])
+    deadline, wait, quick = time.monotonic() + seconds, 1.0, 0
     while time.monotonic() < deadline:
+        opened, frames = time.monotonic(), 0
         try:
             async with connect(URL) as ws:
                 await ws.send(json.dumps(subscription(key, mmsis)))
                 async for raw in _until(ws, deadline):
+                    frames += 1
                     try:
                         msg = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw)
                     except ValueError:
@@ -119,6 +125,10 @@ async def record(key: str, mmsis: list, seconds: float, connect=None) -> list:
             raise
         except Exception as exc:                        # dropped connection
             print(f"  connection: {exc}", flush=True)
+        quick = quick + 1 if not frames and time.monotonic() - opened < QUICK_CLOSE_S else 0
+        if quick >= QUICK_CLOSES:
+            raise RuntimeError("aisstream closed every connection at once without sending data: "
+                               "check the AISSTREAM_API_KEY secret")
         left = deadline - time.monotonic()
         if left <= 0:
             break
@@ -246,16 +256,18 @@ def main(argv=None) -> int:
         return 0
     mmsis = followed_mmsis()
     print(f"Listening {args.seconds:.0f}s to aisstream.io for {min(len(mmsis), MAX_SHIPS)} ships")
+    rows, error = [], None
     try:
-        rows = asyncio.run(record(key, mmsis, args.seconds))
+        asyncio.run(record(key, mmsis, args.seconds, rows=rows))
     except RuntimeError as exc:                   # bad key etc.: the person has to act
-        write_status(ok=False, error=str(exc), last_attempt=today)
-        print(f"::error::{exc}")
-        return 1
-    size = append_buffer(BUFFER, rows)
+        error = str(exc)
+    size = append_buffer(BUFFER, rows)            # keep what arrived, even after an error
     seen = sorted({r["mmsi"] for r in rows})
-    write_status(ok=True, error=None, last_attempt=today, last_positions=len(rows), last_ships=len(seen))
+    write_status(ok=error is None, error=error, last_attempt=today, last_positions=len(rows), last_ships=len(seen))
     print(f"{len(rows)} positions from {len(seen)} ships; buffer now {size} ship-hours.")
+    if error:
+        print(f"::error::{error}")
+        return 1
     return 0
 
 

@@ -163,3 +163,36 @@ def test_main_without_key_exits_quietly(monkeypatch, tmp_path, capsys):
 def test_followed_mmsis(tmp_path):
     lib = _lib(tmp_path)
     assert ais_live.followed_mmsis(lib) == [MMSI]
+
+
+class _Closing:
+    """A connection the server closes at once, sending nothing (as a rejected key may look)."""
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    async def send(self, text): pass
+    def __aiter__(self): return self
+    async def __anext__(self): raise StopAsyncIteration
+
+
+def test_record_reports_a_server_that_closes_every_connection(monkeypatch):
+    monkeypatch.setattr(ais_live, "QUICK_CLOSE_S", 5.0)
+    real_sleep = asyncio.sleep
+    monkeypatch.setattr(asyncio, "sleep", lambda s: real_sleep(0))                   # no real backoff in tests
+    with pytest.raises(RuntimeError, match="AISSTREAM_API_KEY"):
+        asyncio.run(ais_live.record("BAD", [MMSI], seconds=30, connect=lambda url: _Closing()))
+
+
+def test_positions_kept_when_an_error_follows(monkeypatch, tmp_path):
+    monkeypatch.setenv("AISSTREAM_API_KEY", "K")
+    monkeypatch.setattr(ais_live, "STATUS_FILE", tmp_path / "ais_status.json")
+    monkeypatch.setattr(ais_live, "BUFFER", tmp_path / "positions.csv.gz")
+    monkeypatch.setattr(ais_live, "followed_mmsis", lambda library=None: [MMSI])
+
+    async def fake_record(key, mmsis, seconds, connect=None, rows=None):
+        rows.append(ais_live.parse(msg(), {MMSI}))
+        raise RuntimeError("aisstream: Api Key Is Not Valid")
+    monkeypatch.setattr(ais_live, "record", fake_record)
+    assert ais_live.main(["--seconds", "1"]) == 1
+    assert len(ais_live.read_buffer(tmp_path / "positions.csv.gz")) == 1
+    st = json.loads((tmp_path / "ais_status.json").read_text())
+    assert st["ok"] is False and "Not Valid" in st["error"]

@@ -27,7 +27,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: gfw-update            # same queue as the weekly GFW job and the console-data build: no commit races
+  # merging changes the library and prebuilt/: same queue as the weekly GFW job and the console-data build.
+  # Recording only touches ais_buffer/: its own queue, so 2-hourly runs never cancel a queued build there.
+  group: ${{ (github.event.schedule == '47 3 * * *' || inputs.merge == true) && 'gfw-update' || 'ais-record' }}
   cancel-in-progress: false
 
 jobs:
@@ -67,6 +69,9 @@ jobs:
         run: python scripts/build_console_data.py
 
       - name: Commit
+        # also after a failed recording (keep what arrived, and the error for the website); but a failed merge or
+        # build commits nothing, so the site never gets library changes without matching prebuilt data
+        if: always() && (env.MERGE != 'true' || success())
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
