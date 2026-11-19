@@ -1,0 +1,92 @@
+# Near-shore ship positions from aisstream.io (free, live, shore receivers only), to keep the library
+# updating while Global Fishing Watch's track service is down or lagging.
+#
+# Every 2 hours: listen 20 minutes for the library's ships and add their positions to ais_buffer/
+#   (outside library/, so the website keeps using its prebuilt data in between).
+# Once a day (03:47 UTC): merge the buffer into library/tracks after each ship's newest GFW position,
+#   rebuild the console data (prebuilt/) and commit. When GFW data for those hours arrives, it replaces them.
+#
+# Needs one repository secret, AISSTREAM_API_KEY (free key from https://aisstream.io;
+# Settings > Secrets and variables > Actions). Without it the recording step does nothing and says so.
+# Run it by hand from the Actions tab ("Run workflow"); tick "merge" to merge and rebuild now.
+
+name: aisstream positions
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"   # record
+    - cron: "47 3 * * *"     # merge into the library and rebuild the console data
+  workflow_dispatch:
+    inputs:
+      merge:
+        description: "Merge the buffer into the library and rebuild the console data (instead of recording)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # merging changes the library and prebuilt/: same queue as the weekly GFW job and the console-data build.
+  # Recording only touches ais_buffer/: its own queue, so 2-hourly runs never cancel a queued build there.
+  group: ${{ (github.event.schedule == '47 3 * * *' || inputs.merge == true) && 'gfw-update' || 'ais-record' }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MERGE: ${{ github.event.schedule == '47 3 * * *' || inputs.merge == true }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install (recording)
+        if: env.MERGE != 'true'
+        run: pip install "pandas>=2.0" "websockets>=12"
+
+      - name: Record 20 minutes of positions
+        if: env.MERGE != 'true'
+        env:
+          AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
+        run: python ais_live.py --seconds 1200
+
+      - name: Install (merge and build)
+        if: env.MERGE == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Merge into the library
+        if: env.MERGE == 'true'
+        run: python ais_live.py --merge
+
+      - name: Build the console data (SeaTrace)
+        if: env.MERGE == 'true'
+        run: python scripts/build_console_data.py
+
+      - name: Commit
+        # also after a failed recording (keep what arrived, and the error for the website); but a failed merge or
+        # build commits nothing, so the site never gets library changes without matching prebuilt data
+        if: always() && (env.MERGE != 'true' || success())
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A ais_buffer 2>/dev/null || true
+          git add library/ais_status.json 2>/dev/null || true
+          if [ "$MERGE" = "true" ]; then
+            git add library/vessels.csv library/tracks prebuilt 2>/dev/null || true
+            msg="aisstream positions merged $(date -u +%Y-%m-%d)"
+          else
+            msg="aisstream positions $(date -u +%Y-%m-%dT%H:%M)Z"
+          fi
+          if git diff --cached --quiet; then
+            echo "Nothing new."
+            exit 0
+          fi
+          git commit -m "$msg" -m "Near-shore AIS from aisstream.io."
+          for i in 1 2 3; do git pull --rebase && git push && exit 0; sleep 10; done
+          exit 1

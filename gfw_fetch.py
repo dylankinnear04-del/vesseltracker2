@@ -58,6 +58,8 @@ from pathlib import Path
 
 import pandas as pd
 
+import ais_live
+
 HERE = Path(__file__).resolve().parent
 LIBRARY = HERE / "library"
 API = "https://gateway.api.globalfishingwatch.org/v3/4wings/report"
@@ -295,6 +297,7 @@ def save(df: pd.DataFrame, names: dict | None = None) -> tuple[int, int]:
             old = pd.read_csv(path, dtype=str)
             track = (pd.concat([old, track.astype(str)]).drop_duplicates("Timestamp", keep="last")
                      .sort_values("Timestamp"))
+            track = ais_live.prefer_gfw(track)   # aisstream stand-ins give way to GFW where it now has data
         track.to_csv(path, index=False)
 
         name = listed.get("name") or str(info.get("shipName") or mmsi).title()

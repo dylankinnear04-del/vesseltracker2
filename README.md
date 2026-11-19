@@ -298,6 +298,32 @@ deeper than 200 m. Such detections carry a SEAMOUNT or RIDGE tag and the
 numbers in their evidence. Layers ▸ **Seafloor (GEBCO)** shades the seafloor
 (off by default; GEBCO Compilation Group, GEBCO Grid).
 
+## Keeping data current: aisstream.io near-shore positions
+
+Global Fishing Watch's track service can pause (it has been unavailable since
+10 Nov 2026). To keep ships updating meanwhile, `ais_live.py` records the free,
+live [aisstream.io](https://aisstream.io) feed: shore-based AIS receivers, so it
+only sees ships within roughly 40-70 km of a coast (ships far offshore stay
+silent until GFW is back), in beta with no uptime promise.
+
+The **aisstream positions** workflow (`.github/workflows/ais_live.yml`) listens
+for 20 minutes every 2 hours, for the library's ships only, and adds one position
+per ship per hour to `ais_buffer/` (outside `library/`, so the website keeps its
+prebuilt data in between). Once a day (03:47 UTC) it merges the buffer into each
+ship's `gfw_<MMSI>.csv` **after its newest GFW position**, marked `Source =
+aisstream`, rebuilds the console data and commits. When GFW data for those hours
+arrives, it replaces the aisstream positions (`ais_live.prefer_gfw`). Ships with
+hand-made track files are left alone. The console's notice says when near-shore
+positions are filling in.
+
+Setup, once: sign up at aisstream.io (free, GitHub login), copy the API key, and
+add it as a repository secret named `AISSTREAM_API_KEY`:
+
+    gh secret set AISSTREAM_API_KEY --repo dylankinnear04-del/vesseltracker2
+
+(it asks for the value; or Settings > Secrets and variables > Actions on GitHub).
+Without the key the workflow runs and records nothing.
+
 ## Cable watch: ships over undersea cables
 
 To keep watch for attacks on undersea fibre-optic cables, Layers ▸ **Submarine
