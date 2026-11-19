@@ -7,3 +7,4 @@ folium>=0.17
 searoute>=1.3
 scipy>=1.10
 streamlit-folium>=0.27
+websockets>=12

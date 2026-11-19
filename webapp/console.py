@@ -14,9 +14,13 @@ GFW_STATUS = Path(__file__).resolve().parents[1] / "library" / "gfw_status.json"
 STALE_DAYS = 10
 
 
+AIS_STATUS = GFW_STATUS.parent / "ais_status.json"                                     # written by ais_live.py
+
+
 def track_notice(newest: datetime.date | None, status_file: Path = GFW_STATUS,
-                 today: datetime.date | None = None) -> str | None:
-    """The console's notice about old ship tracks: why, when the weekly pull recorded a GFW outage."""
+                 today: datetime.date | None = None, ais_file: Path = AIS_STATUS) -> str | None:
+    """The console's notice about old ship tracks: why, when the weekly pull recorded a GFW outage, and whether
+    aisstream.io's near-shore positions are filling in meanwhile."""
     try:
         status = json.loads(status_file.read_text())
     except (FileNotFoundError, ValueError):
@@ -25,6 +29,14 @@ def track_notice(newest: datetime.date | None, status_file: Path = GFW_STATUS,
     when = f"{newest:%-d %b %Y}" if newest else "unknown"
     if down and down[0]:
         since = datetime.date.fromisoformat(down[0])
+        try:
+            ais = json.loads(ais_file.read_text())
+        except (FileNotFoundError, ValueError):
+            ais = {}
+        if ais.get("last_merge") and ais.get("merged_positions"):
+            return (f"Global Fishing Watch's track service has been unavailable since {since:%-d %b}: meanwhile "
+                    f"near-shore positions come from aisstream.io (ship data to {when}). Ships far offshore are "
+                    f"not seen until GFW is back")
         return (f"Ship tracks last updated {when}: Global Fishing Watch's track service has been unavailable "
                 f"since {since:%-d %b}. Registry and events still update weekly; tracks resume when GFW is back")
     if newest and ((today or datetime.date.today()) - newest).days > STALE_DAYS:

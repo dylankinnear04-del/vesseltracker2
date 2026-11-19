@@ -117,3 +117,18 @@ def test_no_notice_when_current(tmp_path):
     f = tmp_path / "s.json"
     f.write_text(json.dumps({"mining": {"ok": True}}))
     assert console.track_notice(D(2026, 11, 6), f, TODAY) is None
+
+
+def test_notice_mentions_aisstream_filling_in(tmp_path):
+    f, a = tmp_path / "s.json", tmp_path / "ais.json"
+    f.write_text(json.dumps({"mining": {"ok": False, "down_since": "2026-11-03"}}))
+    a.write_text(json.dumps({"last_merge": "2026-11-09", "merged_positions": 120, "ok": True}))
+    msg = console.track_notice(D(2026, 11, 9), f, TODAY, ais_file=a)
+    assert "unavailable since 3 Nov" in msg and "aisstream.io" in msg and "near-shore" in msg and "offshore" in msg
+
+
+def test_notice_without_aisstream_data_is_unchanged(tmp_path):
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"mining": {"ok": False, "down_since": "2026-11-03"}}))
+    msg = console.track_notice(D(2026, 10, 23), f, TODAY, ais_file=tmp_path / "none.json")
+    assert "aisstream" not in msg and "tracks resume when GFW is back" in msg
