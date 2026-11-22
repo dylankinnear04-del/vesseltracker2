@@ -1,9 +1,9 @@
 {
  "ok": true,
  "error": null,
- "last_attempt": "2026-11-21",
- "last_positions": 7,
- "last_ships": 3,
+ "last_attempt": "2026-11-22",
+ "last_positions": 2,
+ "last_ships": 2,
  "last_merge": "2026-11-21",
  "merged_positions": 9,
  "merged_ships": 5
